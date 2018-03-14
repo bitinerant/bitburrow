@@ -117,7 +117,7 @@ crl-verify crl.rsa.2048.pem
 ca ca.rsa.2048.crt
 reneg-sec 0
 comp-lzo yes
-verb 1
+verb 3
 mute-replay-warnings
 log /tmp/openvpn.log
 daemon
@@ -128,6 +128,8 @@ daemon
 #!/bin/sh
 echo '### date'
 date --utc '+%Y-%m-%d %H:%M:%S'
+echo '### uptime'
+uptime
 echo '### cat /etc/banner'
 cat /etc/banner |grep -v -e '^ ---------------' -e '^  \* ' -e '^ |' -e '^  __'
 echo '### cat /etc/glversion'
@@ -156,6 +158,8 @@ echo '### traceroute -n -m 4 141.1.1.1'
 traceroute -n -m 4 141.1.1.1
 echo '### cat /tmp/openvpn.log'
 cat /tmp/openvpn.log
+echo '### iptables-save'
+iptables-save
 echo '### the end'
 ```
 * Make sure all files have Linux-style line endings.
