@@ -3,6 +3,8 @@ A safe internet tunnel for the whole home that anyone can set up.
 
 The goal of the Clear Gopher project is to make it really easy for non-technical people to set up a secure VPN for their whole home. We hope to eventually automate most of these steps.
 
+For these instructions, you will need a computer with a few tools which are not installed by default on Windows systems, such as ``telnet``, ``ssh`` client, and ``sha256sum``. Other tools used below are available on Windows by different names, such as ``wget`` and ``unzip``.
+
 #### 1. acquire the hardware
 * **VPN router**:  GL.iNet GL-AR300M
 	* Similar models, such as the GL-AR300M-Lite, GL-AR300M16, and GL-AR300MD, *may* work but have not been tested.
