@@ -5,11 +5,7 @@ import argparse
 import os
 import io
 from sys import stderr
-#import sys
-#from pathlib import Path
 import re
-#import subprocess
-#import getpass
 import secrets
 import base64
 import netifaces # needs pip3 install netifaces (but installed by default on Ubuntu 18.04 Desktop)
@@ -24,8 +20,7 @@ from cryptography.hazmat.primitives import serialization as crypto_serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend as crypto_default_backend
 from hashlib import sha256
-#from subprocess_monitor import SubprocessMonitor # FIXME: maybe pexpect would be better - http://pexpect.readthedocs.org/en/stable/index.html
-import yaml
+import yaml # FIXME: consider ruamel.yaml - https://stackoverflow.com/a/36760452/10590519
 import time
 import textwrap
 
@@ -37,12 +32,12 @@ class RemoteExecutionError(Exception):
     pass
 
 
-def print_msg(level, msg):
+def print_msg(level, msg, end='\n'):
     if args.verbose > level:
         if level == 0:
-            print('{}'.format(msg), file=stderr)
+            print('{}'.format(msg), file=stderr, end=end)
         else:
-            print('{}'.format(msg))
+            print('{}'.format(msg), end=end)
 
 
 ### process command-line arguments ###
@@ -81,7 +76,7 @@ class PrivateInternetAccess(VpnProvider):
     def file(filename, data={}):
         if filename == 'ca.rsa.2048.crt':
             # from https://www.privateinternetaccess.com/openvpn/openvpn.zip
-            cert = '''\
+            fcontents = '''\
                 -----BEGIN CERTIFICATE-----
                 MIIFqzCCBJOgAwIBAgIJAKZ7D5Yv87qDMA0GCSqGSIb3DQEBDQUAMIHoMQswCQYD
                 VQQGEwJVUzELMAkGA1UECBMCQ0ExEzARBgNVBAcTCkxvc0FuZ2VsZXMxIDAeBgNV
@@ -118,7 +113,7 @@ class PrivateInternetAccess(VpnProvider):
             '''
         if filename == 'ca.rsa.4096.crt':
             # from https://www.privateinternetaccess.com/openvpn/ca.rsa.4096.crt
-            cert = '''\
+            fcontents = '''\
                 -----BEGIN CERTIFICATE-----
                 MIIHqzCCBZOgAwIBAgIJAJ0u+vODZJntMA0GCSqGSIb3DQEBDQUAMIHoMQswCQYD
                 VQQGEwJVUzELMAkGA1UECBMCQ0ExEzARBgNVBAcTCkxvc0FuZ2VsZXMxIDAeBgNV
@@ -165,7 +160,7 @@ class PrivateInternetAccess(VpnProvider):
             '''
         if filename == 'crl.rsa.2048.pem':
             # from https://www.privateinternetaccess.com/openvpn/openvpn.zip
-            cert = '''\
+            fcontents = '''\
                 -----BEGIN X509 CRL-----
                 MIICWDCCAUAwDQYJKoZIhvcNAQENBQAwgegxCzAJBgNVBAYTAlVTMQswCQYDVQQI
                 EwJDQTETMBEGA1UEBxMKTG9zQW5nZWxlczEgMB4GA1UEChMXUHJpdmF0ZSBJbnRl
@@ -184,7 +179,7 @@ class PrivateInternetAccess(VpnProvider):
             '''
         if filename == 'ca.crt':
             # from wget https://www.privateinternetaccess.com/openvpn/ca.crt
-            cert = '''\
+            fcontents = '''\
                 -----BEGIN CERTIFICATE-----
                 MIID2jCCA0OgAwIBAgIJAOtqMkR2JSXrMA0GCSqGSIb3DQEBBQUAMIGlMQswCQYD
                 VQQGEwJVUzELMAkGA1UECBMCT0gxETAPBgNVBAcTCENvbHVtYnVzMSAwHgYDVQQK
@@ -210,16 +205,18 @@ class PrivateInternetAccess(VpnProvider):
                 -----END CERTIFICATE-----
             '''
         if filename == 'credentials.txt':
-            cert = '''\
+            fcontents = '''\
                 {user}
                 {pw}
             '''.format(user=data['vpn_username'], pw=data['vpn_password'])
-        if filename == 'PIA-client.conf':
-            # note ``auth-nocache`` appears to greatly reduce ``AUTH_FAILED`` errors (64% -> 6% in a quick test), and adding to this ``pull-filter ignore "auth-token"`` (for OpenVPN 2.4; [source](https://www.privateinternetaccess.com/forum/discussion/24089/inactivity-timeout-ping-restart#latest)) seems eliminate the errors
-            cert = '''\
+        if filename == 'client.conf':
+            fcontents = '''\
                 client
                 dev tun
                 proto udp
+                # mssfix is needed to solve MTU issues (VPN stall) on some networks
+                # FIXME: for better throughput on correct links, don't use 'mssfix' unless needed; see https://www.privateinternetaccess.com/archive/forum/discussion/4603/setting-up-mtu-fragment-mssfix
+                mssfix 1400
                 remote {server} 1198
                 resolv-retry infinite
                 nobind
@@ -231,7 +228,9 @@ class PrivateInternetAccess(VpnProvider):
                 remote-cert-tls server
                 cd /etc/openvpn
                 auth-user-pass credentials.txt
+                # 'auth-nocache' appears to greatly reduce AUTH_FAILED errors (64% -> 6% in a quick test)
                 auth-nocache
+                # 'pull-filter ignore "auth-token"' seems eliminate errors on OpenVPN 2.4 - https://www.privateinternetaccess.com/forum/discussion/24089/inactivity-timeout-ping-restart#latest
                 pull-filter ignore "auth-token"
                 crl-verify crl.rsa.2048.pem
                 ca ca.rsa.2048.crt
@@ -242,64 +241,37 @@ class PrivateInternetAccess(VpnProvider):
                 log /tmp/openvpn.log
                 daemon
             '''.format(server=data['vpn_server_host'])
-        if filename == 'sysinfo':
-            cert = '''\
+        if filename == 'restart-if-needed.sh':
+            # the OpenVPN default '--ping-restart 120' seems to not always recover connectivity
+            fcontents = '''\
                 #!/bin/sh
-                echo '### date'
-                date --utc '+%Y-%m-%d %H:%M:%S'
-                echo '### uptime'
-                uptime
-                echo '### cat /etc/banner'
-                cat /etc/banner |grep -v -e '^ ---------------' -e '^  \* ' -e '^ |' -e '^  __'
-                echo '### cat /etc/glversion'
-                cat /etc/glversion
-                echo '### cat /etc/openwrt_release'
-                cat /etc/openwrt_release
-                echo '### uname -a'
-                uname -a
-                echo '### cat /proc/cpuinfo'
-                cat /proc/cpuinfo
-                echo '### ip address show'
-                ip address show
-                echo '### ip rule show'
-                ip rule show
-                echo '### ip route show table all'
-                ip route show table all
-                echo '### ls -l /etc/openvpn'
-                ls -l /etc/openvpn
-                echo '### cat /etc/openvpn/*.conf'
-                cat /etc/openvpn/*.conf
-                echo '### cat /etc/config/openvpn'
-                cat /etc/config/openvpn |grep -v -e '^#' -e '^\W#' -e '^$'
-                echo '### cat /etc/firewall.user'
-                cat /etc/firewall.user
-                echo '### uci show'
-                uci show |grep -v '^wireless..wifi-iface....key='
-                echo '### traceroute -n -m 4 141.1.1.1'
-                traceroute -n -m 4 141.1.1.1
-                echo '### cat /tmp/openvpn.log'
-                cat /tmp/openvpn.log
-                echo '### iptables-save'
-                iptables-save
-                echo '### the end'
+                vpn_endp=$(ip route |grep '^10\.[0-9\.]* via 10\.[0-9\.]* dev tun' |grep -o '^[0-9\.]*')
+                restart=0
+                if ! pidof openvpn ; then restart=1; fi
+                if ! ip route |grep '^128\.0\.0\.0/1 via .* dev tun' ; then restart=1; fi
+                if ! ping -q -c1 -W4 $vpn_endp |grep '1 packets received' ; then restart=1; fi
+                if ! (
+                    ping -q -c1 -W4 8.8.8.8 |grep '1 packets received' ||
+                    ping -q -c1 -W4 141.1.1.1 |grep '1 packets received'
+                ) ; then restart=1; fi
+                if [ $restart == 1 ] ; then
+                    killall openvpn && sleep 2
+                    killall -9 openvpn && sleep 2
+                    /usr/sbin/openvpn --syslog 'openvpn(vpnas)' --status /var/run/openvpn.vpnas.status --cd /etc/openvpn --config /etc/openvpn/client.conf
+                fi
             '''
-        if filename == 'test25.txt':
-            cert = '''\
-                {user}
-                (the password would normally go here)
-            '''.format(user=data.get('vpn_username'))
-        return textwrap.dedent(cert).encode()
+        return textwrap.dedent(fcontents).encode()
 
     def files():
         return {
-            #filename           target directory on router
-            'ca.rsa.2048.crt'  : '/etc/openvpn',
-            'ca.rsa.4096.crt'  : '/etc/openvpn',
-            'crl.rsa.2048.pem' : '/etc/openvpn',
-            'ca.crt'           : '/etc/openvpn',
-            'credentials.txt'  : '/etc/openvpn',
-            'PIA-client.conf'  : '/etc/openvpn',
-            'sysinfo'          : '/etc/openvpn',
+            #filename               :  target directory on router
+            'ca.rsa.2048.crt'       : '/etc/openvpn',
+            'ca.rsa.4096.crt'       : '/etc/openvpn',
+            'crl.rsa.2048.pem'      : '/etc/openvpn',
+            'ca.crt'                : '/etc/openvpn',
+            'credentials.txt'       : '/etc/openvpn',
+            'client.conf'           : '/etc/openvpn',
+            'restart-if-needed.sh'  : '/etc/openvpn',
         }
 
 
@@ -583,6 +555,7 @@ class Router(yaml.YAMLObject):
                 self.exec(line)
 
     def update_groups(self, code_text):
+        groups_updated_count = 0
         http_password_sha256 = sha256(self.router_password.encode()).hexdigest()
         code = code_text.format(
             http_password_sha256 = http_password_sha256,
@@ -611,7 +584,9 @@ class Router(yaml.YAMLObject):
                 if m:
                     if gname: # group title signals end of prior group, so execute now
                         self.update_group(gname, versions[gname], gver, gcode) # may raise RemoteExecutionError
-                        versions[gname] = gver # successful - update to new version number
+                        if versions[gname] != gver:
+                            versions[gname] = gver # successful - update to new version number
+                            groups_updated_count += 1
                     gname = m[1]
                     gver = int(m[2])
                     gcode = []
@@ -631,6 +606,7 @@ class Router(yaml.YAMLObject):
             versions_text = ' '.join([g+str(v) for g, v in versions.items()])
             vt_width = 64 if len(versions_text) > 64 else 52
             self.version_map = '\n'.join(textwrap.wrap(versions_text, width=vt_width))
+        return groups_updated_count
 
 
 class Config():
@@ -668,17 +644,16 @@ class Config():
         return self
     
     def save(self):
-        for r in self.routers:
-            del(r.client) # don't save this field; also means you cannot use a connection after calling save()
         # yaml.add_representer(ipaddress.IPv4Address, Config.str_representer)
         # yaml.add_representer(ipaddress.IPv6Address, Config.str_representer)
         yaml.add_representer(str, Config.long_str_representer)
         try:
+            header = "Clear Gopher YAML configuration file - be very careful when editing because indent, colons, and many other characters have special meaning"
+            body = yaml.dump(self.routers, default_flow_style=False)
             with open(self.__conf_path__+'.0', 'w') as conf_file:
                 os.chmod(self.__conf_path__+'.0', 0o600) # protect passwords and keys from other users
-                header = "Clear Gopher YAML configuration file - be very careful when editing because indent, colons, and many other characters have special meaning"
                 conf_file.write('# ' + '\n# '.join(textwrap.wrap(header, width=66)) + '\n')
-                conf_file.write(yaml.dump(self.routers, default_flow_style=False))
+                conf_file.write(re.sub(r'\n *client:[^\n]+\n', '\n', body)) # don't save routers.client
         except OSError as err:
             raise CGError("Error saving configuration {}: {}".format(self.__conf_path__+'.0', err))
         try:
@@ -686,13 +661,12 @@ class Config():
             os.rename(self.__conf_path__+'.0', self.__conf_path__) # move file we just saved to real name
         except FileNotFoundError as err:
             raise CGError("Error saving configuration {}: {}".format(self.__conf_path__, err))
-        for r in self.routers:
-            r.client = None # FIXME: find a better way to not save r.client
 
 
 ### main ###
 def main():
     conf = Config.load()
+    # FIXME: connect to correct WiFi network - maybe python-networkmanager
     ip_list_full = [ipaddress.ip_address(r.ip) for r in conf.routers] # IPs from config file entries
     ip_list_full += possible_router_ips() # first IP of each detected network; will normally include 192.168.8.1
     ip_list = [i for n,i in enumerate(ip_list_full) if i not in ip_list_full[:n]] # remove duplicate IPs
@@ -764,9 +738,28 @@ def main():
         # in-line comments are allowed but sent to router
         # newline within quotes must be written: \\n
         groups_gl_inet = '''
-            --- group sysinfo1 ---
+            --- group sysinfoa1 ---
+            # FIXME: don't abort if commands in this group fail
             uname -a
             date --utc '+%Y-%m-%d_%H:%M:%S'
+            cat /etc/banner |grep -v -e '^ ---------------' -e '^  \* ' -e '^ |' -e '^  __'
+            cat /etc/glversion
+            cat /etc/openwrt_release
+            cat /proc/cpuinfo
+            opkg print-architecture
+            traceroute -n -m 4 141.1.1.1
+            --- group sysinfob1 ---
+            #uptime
+            #ip address show
+            #ip rule show
+            #ip route show table all
+            #ls -l /etc/openvpn
+            #cat /etc/openvpn/*.conf
+            #cat /etc/config/openvpn |grep -v -e '^#' -e '^\W#' -e '^$'
+            #cat /etc/firewall.user
+            #uci show |grep -v '^wireless..wifi-iface....key='
+            #cat /tmp/openvpn.log
+            #iptables-save
             --- group safecheck1 --- # verify router WiFi password has not yet been changed; FIXME: allow user to continue anyhow
             cg:assert `uci get wireless.@wifi-iface[0].key` == 'goodlife'
             --- group pwlangtz1 passwords, timezone ---
@@ -784,10 +777,10 @@ def main():
             cg:install-files # copy files to router via Router.install_files()
             --- group filesc1 ---
             chmod 660 /etc/openvpn/*
-            chmod 770 /etc/openvpn/sysinfo
+            chmod 770 /etc/openvpn/restart-if-needed.sh
             --- group dns1 ---
             # set specific DNS servers so that the ISP's servers are not used
-            # FIXME: uci commands using '[-1]' cannot be harmlessly re-run
+            # FIXME: uci commands using '[-1]' cannot be harmlessly re-run; maybe use a 'from' and 'to' version for each group
             uci add_list dhcp.@dnsmasq[-1].server='9.9.9.9'
             uci add_list dhcp.@dnsmasq[-1].server='149.112.112.112'
             uci add_list dhcp.@dnsmasq[-1].noresolv=1
@@ -841,10 +834,10 @@ def main():
             # install OpenVPN and iptables tools (OpenVPN is pre-installed on GL-iNet routers)
             # FIXME: 'opkg update' may take a long time so provide status to user
             opkg update # FIXME: if opkg fails, reboot router and retry
-            opkg install openvpn || opkg install openvpn-openssl # former for OpenWrt older than Chaos Calmer
+            if   [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn; fi # OpenWrt older than Chaos Calmer
+            if ! [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn-openssl; fi # Chaos Calmer and later
             --- group opkgb1 ---
-            # FIXME: don't run 'opkg update' again if we just ran it above
-            opkg update # FIXME: if opkg fails, reboot router and retry
+            if ! [ -f /tmp/opkg-lists/packages ] ; then opkg update; fi # FIXME: if opkg fails, reboot router and retry
             opkg install kmod-ipt-filter iptables-mod-filter # for iptables --match string
             --- group noleak1 ---
             # prevent leaking data to the ISP
@@ -884,19 +877,15 @@ def main():
             uci set firewall.@rule[-1].target=REJECT
             uci commit firewall
             --- group starta1 ---
-            # enble automatic start-up and restart
-            touch /etc/config/openvpn
-            uci set openvpn.vpnas=openvpn
-            uci set openvpn.vpnas.enabled=1
-            uci commit openvpn
-            --- group startb1 ---
-            /etc/init.d/openvpn enable
-            printf '\\n/etc/init.d/openvpn start\\n' >>/etc/firewall.user # 'enable' isn't reliable
+            # it seems that `/etc/init.d/openvpn enable` isn't reliable and `/etc/init.d/openvpn start` (run at boot) starts a new process every 5 seconds
+            # use cron to check every 60 seconds if OpenVPN is working
+            (crontab -l 2>/dev/null; echo '* * * * * /etc/openvpn/restart-if-needed.sh') |crontab -
             --- group complete1 --- # end marker
         '''
         try:
-            router.update_groups(groups_gl_inet)
-            router.exec('reboot') # FIXME: only reboot if router was NOT fully configured before
+            update_count = router.update_groups(groups_gl_inet)
+            if update_count > 0:
+                router.exec('reboot')
         except RemoteExecutionError:
             raise CGError("Unable to fully configure router {}. Reboot reboot router and try again.".format(router.nickname)) # FIXME: automate this
         # all groups successfully updated
@@ -908,9 +897,6 @@ def main():
         router.close()
         conf.save()
 
-#- set senC to watch outbound traffic
-#- hook SenC as client of Sen7
-
 
 if __name__ == '__main__':
     try:
@@ -918,11 +904,15 @@ if __name__ == '__main__':
     except CGError as err:
         print_msg(0,err)
 
+
+# FIXME: implement unit tests
+# FIXME: fix long lines in source code
+# FIXME: implement router testing (see below)
 '''
 #### 14. test
 * Wait for the router to reboot and reconnect WiFi using [wifiPassword].
 * From the client computer, test a few websites and download a large file (30 seconds or more).
-* Test that your IP is from PIA (e.g. banner at top of PIA home page should say, "You are protected by PIA")
+#wget -q -O- 'https://www.privateinternetaccess.com/' |grep 'You are protected by PIA' # * Test that your IP is from PIA (e.g. banner at top of PIA home page should say, "You are protected by PIA")
 * Test that DNS is not leaking (none of the DNS addresses displayed should be in same country as the router) at <https://ipleak.net/> (an additional DNS leak test is at <https://dnsleaktest.com/>).
 * Test that IPv6 is blocked:  <http://ipv6-test.com/>.
 * Note--replace 'eth0' below with the ISP-facing device, probably what is displayed by:  ip route show |grep ^default |awk '{print $5}'
