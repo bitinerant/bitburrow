@@ -455,6 +455,7 @@ class Router(yaml.YAMLObject):
         if self.client != None:
             return
         self.client = paramiko.SSHClient()
+        self.client.set_missing_host_key_policy(paramiko.RejectPolicy) # be sure the host key is correct
         # host key (normally in ~/.ssh/known_hosts)
         hostkey = self.ssh_hostkey.split(' ')
         self.client.get_host_keys().add(self.ip, hostkey[0], paramiko.RSAKey(data=base64.b64decode(hostkey[1])))
@@ -463,17 +464,32 @@ class Router(yaml.YAMLObject):
         privkey_file.write(self.ssh_privkey)
         privkey_file.seek(0)
         privkey = paramiko.RSAKey.from_private_key(privkey_file)
-        try:
+        try: # first try to connect using private ssh key
             self.client.connect(
                 hostname=self.ip,
                 username='root',
                 pkey=privkey,
-                password=self.router_password, # will try private key first, then password
+                password=None, # don't use password this time because we want to know if ssh key fails
                 allow_agent=False,
                 look_for_keys=False,
             )
             self.last_connect = time.strftime("%Y-%m-%d_%H:%M:%S", time.gmtime())
-            print_msg(1, "Connected to {}".format(self.nickname))
+            print_msg(1, "Connected to {} via ssh key".format(self.nickname))
+            return # successful connection via private key
+        except paramiko.ssh_exception.AuthenticationException:
+            pass
+        try: # if private ssh key fails, try the password
+            self.client.connect( #
+                hostname=self.ip,
+                username='root',
+                pkey=None,
+                password=self.router_password,
+                allow_agent=False,
+                look_for_keys=False,
+            )
+            self.last_connect = time.strftime("%Y-%m-%d_%H:%M:%S", time.gmtime())
+            print_msg(1, "Warning: connecting via ssh key failed")
+            print_msg(1, "Connected to {} via password".format(self.nickname))
         except paramiko.ssh_exception.AuthenticationException:
             self.client = None
 
@@ -685,21 +701,15 @@ def main():
             continue
         mac_to_ip[mac] = ip
         found = False
-        for r in conf.routers: # look for matching MAC address in conf data
-            if r.mac == mac:
-                r.ip = str(ip) # update IP if it has changed
+        hostkey = add_line_breaks(ssh_keyscan(str(ip)), line_len=64) # often takes a couple of seconds
+        # note we don't match based on MAC because routers can be reset, plus some routers generate the MAC address for certain interfaces at boot time
+        for r in conf.routers: # look for matching hostkey in conf data
+            if r.ssh_hostkey == hostkey:
+                r.ip = str(ip) # update IP if it has changed since config file was saved
+                r.mac = mac # update MAC if it has changed
                 router_options.append(r)
                 found = True
                 break
-        if not found: # check hostkey as well as MAC because some routers generate the MAC address for certain interfaces at boot time
-            hostkey = add_line_breaks(ssh_keyscan(str(ip)), line_len=64) # often takes a couple of seconds
-            for r in conf.routers: # look for matching hostkey in conf data
-                if r.ssh_hostkey == hostkey:
-                    r.ip = str(ip) # update IP if it has changed
-                    r.mac = mac # update MAC if it has changed
-                    router_options.append(r)
-                    found = True
-                    break
         if not found:
             r = Router(ip, mac) # previously-unknown router
             router_options.append(r)
@@ -747,7 +757,7 @@ def main():
             cat /etc/openwrt_release
             cat /proc/cpuinfo
             opkg print-architecture
-            traceroute -n -m 4 141.1.1.1
+            traceroute -n -m 6 141.1.1.1
             --- group sysinfob1 ---
             #uptime
             #ip address show
@@ -837,7 +847,7 @@ def main():
             if   [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn; fi # OpenWrt older than Chaos Calmer
             if ! [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn-openssl; fi # Chaos Calmer and later
             --- group opkgb1 ---
-            if ! [ -f /tmp/opkg-lists/packages ] ; then opkg update; fi # FIXME: if opkg fails, reboot router and retry
+            if ! ( [ -f /tmp/opkg-lists/packages ] || [ -f /tmp/opkg-lists/*_packages ] ) ; then opkg update; fi # FIXME: if opkg fails, reboot router and retry
             opkg install kmod-ipt-filter iptables-mod-filter # for iptables --match string
             --- group noleak1 ---
             # prevent leaking data to the ISP
