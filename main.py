@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# in general, double quotes are used for text that should be localized (l10n); single quotes elsewhere
+# note double quotes are used for text that should be localized (l10n); single quotes elsewhere
 
 import argparse
 import os
@@ -49,14 +49,13 @@ group_verbose.add_argument('-v', '--verbose', action='count', default=1,
 group_verbose.add_argument('-q','--quiet', action='store_const', const=0,
         dest='verbose', # mapping: '-q'->0 / default->1 / '-v'->2 / '-vv'->3
         help="silence error messages")
-parser.add_argument('-y','--yes', action='store_true', help="unattended mode (answer 'yes' to all questions)")
-parser.add_argument('-d','--debug', action='store_true', help="debug mode")
+parser.add_argument('-y','--yes', action='store_true', 
+        help="unattended mode (answer 'yes' to all questions)")
+parser.add_argument('-d','--debug', action='store_true', 
+        help="debug mode")
 # mandatory arguments
-parser.add_argument('command',
-    choices=('configure', 'update'),
-    metavar='command',
-    help="task to perform: configure or update"
-)
+parser.add_argument('command', choices=('configure', 'update'), metavar='command',
+        help="task to perform: configure or update")
 args = parser.parse_args()
 
 
@@ -215,7 +214,9 @@ class PrivateInternetAccess(VpnProvider):
                 dev tun
                 proto udp
                 # mssfix is needed to solve MTU issues (VPN stall) on some networks
-                # FIXME: for better throughput on correct links, don't use 'mssfix' unless needed; see https://www.privateinternetaccess.com/archive/forum/discussion/4603/setting-up-mtu-fragment-mssfix
+                # FIXME: for better throughput on correct links, don't use ...
+                #     'mssfix' unless needed; see ...
+                #      https://www.privateinternetaccess.com/archive/forum/discussion/4603
                 mssfix 1400
                 remote {server} 1198
                 resolv-retry infinite
@@ -228,9 +229,11 @@ class PrivateInternetAccess(VpnProvider):
                 remote-cert-tls server
                 cd /etc/openvpn
                 auth-user-pass credentials.txt
-                # 'auth-nocache' appears to greatly reduce AUTH_FAILED errors (64% -> 6% in a quick test)
+                # 'auth-nocache' appears to greatly reduce AUTH_FAILED errors ...
+                #     (64% -> 6% in a quick test)
                 auth-nocache
-                # 'pull-filter ignore "auth-token"' seems eliminate errors on OpenVPN 2.4 - https://www.privateinternetaccess.com/forum/discussion/24089/inactivity-timeout-ping-restart#latest
+                # 'pull-filter ignore "auth-token"' seems eliminate errors on OpenVPN 2.4; ...
+                #     see https://www.privateinternetaccess.com/forum/discussion/24089
                 pull-filter ignore "auth-token"
                 crl-verify crl.rsa.2048.pem
                 ca ca.rsa.2048.crt
@@ -245,7 +248,11 @@ class PrivateInternetAccess(VpnProvider):
             # the OpenVPN default '--ping-restart 120' seems to not always recover connectivity
             fcontents = '''\
                 #!/bin/sh
-                vpn_endp=$(ip route |grep '^10\.[0-9\.]* via 10\.[0-9\.]* dev tun' |grep -o '^[0-9\.]*')
+                vpn_endp=$( \\
+                    ip route  \\
+                    |grep '^10\.[0-9\.]* via 10\.[0-9\.]* dev tun'  \\
+                    |grep -o '^[0-9\.]*' \\
+                )
                 restart=0
                 if ! pidof openvpn ; then restart=1; fi
                 if ! ip route |grep '^128\.0\.0\.0/1 via .* dev tun' ; then restart=1; fi
@@ -257,7 +264,11 @@ class PrivateInternetAccess(VpnProvider):
                 if [ $restart == 1 ] ; then
                     killall openvpn && sleep 2
                     killall -9 openvpn && sleep 2
-                    /usr/sbin/openvpn --syslog 'openvpn(vpnas)' --status /var/run/openvpn.vpnas.status --cd /etc/openvpn --config /etc/openvpn/client.conf
+                    /usr/sbin/openvpn \\
+                        --syslog 'openvpn(vpnas)' \\
+                        --status /var/run/openvpn.vpnas.status \\
+                        --cd /etc/openvpn \\
+                        --config /etc/openvpn/client.conf
                 fi
             '''
         return textwrap.dedent(fcontents).encode()
@@ -277,7 +288,8 @@ class PrivateInternetAccess(VpnProvider):
 
 def generate_new_password(length = 12):
     """Return a new, secure, random password of the given length"""
-    pass_chars = r'''abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789''' # skip visually similar ones
+    # pass_chars does not include visually similar characters
+    pass_chars = r'''abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789''' 
     return ''.join(secrets.choice(pass_chars) for i in range(length))
 
 
@@ -287,7 +299,8 @@ def hashed_md5_password(password, salt=None): # https://stackoverflow.com/a/2728
     is generaged for compatibility with older systems."""
     if salt == None:
         salt = crypt.mksalt(crypt.METHOD_MD5) # begins '$1$', e.g. '$1$D6/56C4p'
-    return crypt.crypt(password, salt) # cli equivalent: openssl passwd -1 -salt $PLAIN_SALT $PASSWORD
+    # cli equivalent to crypt.crypt(): openssl passwd -1 -salt $PLAIN_SALT $PASSWORD
+    return crypt.crypt(password, salt)
 
 
 def generate_ssh_key_pair(): # based on https://stackoverflow.com/a/39126754/10590519
@@ -306,8 +319,9 @@ def generate_ssh_key_pair(): # based on https://stackoverflow.com/a/39126754/105
         crypto_serialization.Encoding.OpenSSH,
         crypto_serialization.PublicFormat.OpenSSH
     ).decode()
-    # 'RSA' needs to be in header; I think this is https://github.com/paramiko/paramiko/issues/1226
-    return (public_key, private_key.replace('-BEGIN PRIVATE KEY-', '-BEGIN RSA PRIVATE KEY-').replace('-END PRIVATE KEY-', '-END RSA PRIVATE KEY-'))
+    # 'RSA' needs to be in header; looks like https://github.com/paramiko/paramiko/issues/1226
+    return (public_key, private_key.replace('-BEGIN PRIVATE KEY-', '-BEGIN RSA PRIVATE KEY-')
+                                   .replace('-END PRIVATE KEY-', '-END RSA PRIVATE KEY-'))
 
 
 def add_line_breaks(long_string, line_len=70):
@@ -323,18 +337,24 @@ def possible_router_ips():
                 for a in netifaces.ifaddresses(intf)[ip_ver]:
                     if 'addr' in a and 'netmask' in a:
                         addr = a['addr'].split('%')[0] # strip away '%' and interface name
-                        prefix_len = bin(int.from_bytes(ipaddress.ip_address(a['netmask']).packed, byteorder='big')).count('1')
+                        prefix_len = bin(
+                            int.from_bytes(
+                                ipaddress.ip_address(a['netmask']).packed,
+                                byteorder='big'
+                            )
+                        ).count('1')
                         subnet = ipaddress.ip_network(addr + '/' + str(prefix_len), strict=False)
-                        if prefix_len < subnet.max_prefixlen and not ipaddress.ip_address(addr).is_link_local: # not a /32 (IPv4) address, and not link local
+                        if (prefix_len < subnet.max_prefixlen # not a /32 (IPv4) address
+                                and not ipaddress.ip_address(addr).is_link_local): # not link local
                             first_ip = subnet[1] # assume router is first IP in subnet
-                            if not first_ip == ipaddress.ip_address(addr): # if different than our IP
+                            if not first_ip == ipaddress.ip_address(addr): # if not our IP
                                 possible_routers.append(first_ip)
     return possible_routers
 
 
 def ssh_keyscan(ip, port=22):
     try:
-        transport = paramiko.Transport((ip, port)) # FIXME: blocks for a very long time for some IPs
+        transport = paramiko.Transport((ip, port)) # FIXME: may block for a very long time
         transport.connect()
         key = transport.get_remote_server_key()
         transport.close()
@@ -346,7 +366,8 @@ def ssh_keyscan(ip, port=22):
 def new_nickname(mac=None):
     manuf = ''
     known_macs = '''
-    # small subset of OUI database from https://code.wireshark.org/review/gitweb?p=wireshark.git;a=blob_plain;f=manuf
+    # small subset of OUI database from ...
+    #     https://code.wireshark.org/review/gitweb?p=wireshark.git;a=blob_plain;f=manuf
     # note literal tab characters don't work
     E4:95:6E:40:00:00/28  GL.iNet
     B8:27:EB              Raspberry Pi
@@ -354,7 +375,8 @@ def new_nickname(mac=None):
     9C:B6:D0              RivetNet
     '''
     if mac != None and mac != '00:00:00:00:00:00':
-        mac_digits = mac.translate({ord(c):None for c in [':', '-', '.', ' ']}).lower() # remove separators
+        # mac_digits is mac without separators
+        mac_digits = mac.translate({ord(c):None for c in [':', '-', '.', ' ']}).lower()
         r_line = re.compile(r'^\s*([0-9a-fA-F:\.-]+)(/[0-9]+)?\s+([^#]+)')
         r_comment = re.compile(r'^\s*(#.*)?$')
         for line in known_macs.split('\n'):
@@ -362,8 +384,10 @@ def new_nickname(mac=None):
             if match:
                 mask = 24 if match[2] == None else int(re.sub(r'\D', '', match[2]))
                 assert (mask/4).is_integer(), "mask not multiple of 4: {}".format(line)
-                mask_div_4 = int(mask/4) # address mask divided by 4 is the number of hex digits needed
-                line_digits = match[1].translate({ord(c):None for c in [':', '-', '.', ' ']}).lower()
+                mask_div_4 = int(mask/4) # ¼ of address mask is the number of hex digits needed
+                line_digits = match[1].translate(
+                    {ord(c):None for c in [':', '-', '.', ' ']}
+                ).lower()
                 if mac_digits[0:mask_div_4] == line_digits[0:mask_div_4]:
                     manuf = ' ' + match[3].rstrip()
             elif not r_comment.match(line):
@@ -390,17 +414,23 @@ class Router(yaml.YAMLObject):
         self.wifi_password = generate_new_password(length=10)
 
     def generate_ssh_keys(self):
-        # instead of ssh-keyscan, a safer option would be to convert /etc/dropbear/dropbear_rsa_host_key to OpenSSH format - see https://github.com/mkj/dropbear/blob/master/dropbearconvert.c
+        # instead of ssh-keyscan, a safer option would be to convert ...
+        #     /etc/dropbear/dropbear_rsa_host_key to OpenSSH format; see ...
+        #     https://github.com/mkj/dropbear/blob/master/dropbearconvert.c
         self.ssh_hostkey = add_line_breaks(ssh_keyscan(self.ip), line_len=64) # 64 is privkey width
         (pub, priv) = generate_ssh_key_pair()
         self.ssh_pubkey = add_line_breaks(pub, line_len=64)
         self.ssh_privkey = priv
 
     def set_password_on_router(self):
-        # it is also possible to set the router password via http, but this is programmatically more complex, plus on older GL-iNet firmware, this changes the WiFi password as well
-        # it would be more secure to use first_password below, and then set it again with router_password via ssh
+        # it is also possible to set the router password via http, but this is ...
+        #     programmatically more complex, plus on older GL-iNet firmware, this ...
+        #     changes the WiFi password as well
+        # it would be more secure to use first_password below, and then set it again ...
+        #     with router_password via ssh
         root_shadow_line = 'root:' + hashed_md5_password(self.router_password) + ':0:0:99999:7:::'
-        authorized_keys_line = self.ssh_pubkey.translate({ord(c):None for c in ['\t', '\n', '\r']}) # may be better: re.sub(r' *\r*[\t\n] *', '', self.ssh_pubkey)
+        # possible better way to do following line: re.sub(r' *\r*[\t\n] *', '', self.ssh_pubkey)
+        authorized_keys_line = self.ssh_pubkey.translate({ord(c):None for c in ['\t', '\n', '\r']})
         prompt = '[\r\n]root@'
         exit_cmd = 'exit\n'
         phase1 = {
@@ -415,10 +445,12 @@ class Router(yaml.YAMLObject):
             'echo 12③4✔\n',
             '''echo '{}' >/tmp/shadow\n'''.format(root_shadow_line),
             '''grep -v '^root:' /etc/shadow >>/tmp/shadow\n''',
-            '''mv /tmp/shadow /etc/shadow\n''', # should work now: ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@192.168.8.1
+            '''mv /tmp/shadow /etc/shadow\n''',
             '''echo '{}' >>/etc/dropbear/authorized_keys\n'''.format(authorized_keys_line),
             exit_cmd, # exit_cmd must be last item in list
         ]
+        # after above 'mv' command, this should connect you to router:
+        #     ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@192.168.8.1
         phase1_prompts = [re.compile(p.encode()) for p in phase1]
         esc_seq_re = re.compile(r'\x1b\[[0-9;]+m')
         print_msg(1, "<telnet_log>")
@@ -448,17 +480,22 @@ class Router(yaml.YAMLObject):
                     print_msg(1, ''.join(esc_seq_re.split(data.decode())), end='')
                 print_msg(1, '') # make sure we end with a newline
         except (ConnectionRefusedError, EOFError):
-            raise CGError("Unable to connect to {} at {}. Please factory-reset your router and try again.".format(self.nickname, self.ip))
+            raise CGError("Unable to connect to {} at {}. Please factory-reset your "
+                    + " router and try again.".format(self.nickname, self.ip))
         print_msg(1, "</telnet_log>")
 
     def connect_ssh(self):
         if self.client != None:
             return
         self.client = paramiko.SSHClient()
-        self.client.set_missing_host_key_policy(paramiko.RejectPolicy) # be sure the host key is correct
+        self.client.set_missing_host_key_policy(paramiko.RejectPolicy) # ensure correct host key
         # host key (normally in ~/.ssh/known_hosts)
         hostkey = self.ssh_hostkey.split(' ')
-        self.client.get_host_keys().add(self.ip, hostkey[0], paramiko.RSAKey(data=base64.b64decode(hostkey[1])))
+        self.client.get_host_keys().add(
+            self.ip, 
+            hostkey[0], 
+            paramiko.RSAKey(data=base64.b64decode(hostkey[1]))
+        )
         # private key (normally in ~/.ssh/id_rsa)
         privkey_file = io.StringIO()
         privkey_file.write(self.ssh_privkey)
@@ -469,7 +506,7 @@ class Router(yaml.YAMLObject):
                 hostname=self.ip,
                 username='root',
                 pkey=privkey,
-                password=None, # don't use password this time because we want to know if ssh key fails
+                password=None, # don't use password this time; we want to know if ssh key fails
                 allow_agent=False,
                 look_for_keys=False,
             )
@@ -514,7 +551,8 @@ class Router(yaml.YAMLObject):
             if okay_to_fail:
                 return(err0)
             else:
-                raise RemoteExecutionError("Error running '{}' on router: {}".format(command, err0))
+                raise RemoteExecutionError("Error running '{}' on router: {}"
+                        .format(command, err0))
         return out.rstrip() if out_count==1 else out
 
     def put(self, data, remote_path):
@@ -550,7 +588,8 @@ class Router(yaml.YAMLObject):
             if first_word == 'cg:install-files':
                 self.install_files()
             elif first_word == 'cg:assert': # very simplistic parser
-                r = re.compile(r'''((?:[^ "'`]|"[^"]*"|'[^']*'|`[^`]*`)+)''') # https://stackoverflow.com/a/2787064/10590519
+                # following line based on https://stackoverflow.com/a/2787064/10590519
+                r = re.compile(r'''((?:[^ "'`]|"[^"]*"|'[^']*'|`[^`]*`)+)''')
                 words = r.split(line)[1::2]
                 tokens = [] # words without quotes
                 for w in words:
@@ -593,13 +632,14 @@ class Router(yaml.YAMLObject):
         gcode = []
         names_seen = set()
         try:
-            for line in line_re.split(code): # parse the code text blob and execute commands on router
+            for line in line_re.split(code): # parse code text blob and execute commands on router
                 if len(line) == 0 or line[0] == '#':
                     continue
                 m = group_title_re.match(line)
                 if m:
                     if gname: # group title signals end of prior group, so execute now
-                        self.update_group(gname, versions[gname], gver, gcode) # may raise RemoteExecutionError
+                        # following line may raise RemoteExecutionError
+                        self.update_group(gname, versions[gname], gver, gcode)
                         if versions[gname] != gver:
                             versions[gname] = gver # successful - update to new version number
                             groups_updated_count += 1
@@ -664,17 +704,19 @@ class Config():
         # yaml.add_representer(ipaddress.IPv6Address, Config.str_representer)
         yaml.add_representer(str, Config.long_str_representer)
         try:
-            header = "Clear Gopher YAML configuration file - be very careful when editing because indent, colons, and many other characters have special meaning"
+            header = ("Clear Gopher YAML configuration file - be very careful when editing " 
+                    + "because indent, colons, and many other characters have special meaning")
             body = yaml.dump(self.routers, default_flow_style=False)
             with open(self.__conf_path__+'.0', 'w') as conf_file:
-                os.chmod(self.__conf_path__+'.0', 0o600) # protect passwords and keys from other users
+                os.chmod(self.__conf_path__+'.0', 0o600) # protect passwords, keys from other users
                 conf_file.write('# ' + '\n# '.join(textwrap.wrap(header, width=66)) + '\n')
-                conf_file.write(re.sub(r'\n *client:[^\n]+\n', '\n', body)) # don't save routers.client
+                # don't save routers.client
+                conf_file.write(re.sub(r'\n *client:[^\n]+\n', '\n', body))
         except OSError as err:
             raise CGError("Error saving configuration {}: {}".format(self.__conf_path__+'.0', err))
         try:
             os.rename(self.__conf_path__, self.__conf_path__+'.bak') # keep a backup
-            os.rename(self.__conf_path__+'.0', self.__conf_path__) # move file we just saved to real name
+            os.rename(self.__conf_path__+'.0', self.__conf_path__) # move new version to real name
         except FileNotFoundError as err:
             raise CGError("Error saving configuration {}: {}".format(self.__conf_path__, err))
 
@@ -683,9 +725,10 @@ class Config():
 def main():
     conf = Config.load()
     # FIXME: connect to correct WiFi network - maybe python-networkmanager
-    ip_list_full = [ipaddress.ip_address(r.ip) for r in conf.routers] # IPs from config file entries
-    ip_list_full += possible_router_ips() # first IP of each detected network; will normally include 192.168.8.1
-    ip_list = [i for n,i in enumerate(ip_list_full) if i not in ip_list_full[:n]] # remove duplicate IPs
+    ip_list_full = [ipaddress.ip_address(r.ip) for r in conf.routers] # IPs from config file
+    ip_list_full += possible_router_ips() # first IP of each detected network
+    # note ip_list_full will normally include 192.168.8.1
+    ip_list = [i for n,i in enumerate(ip_list_full) if i not in ip_list_full[:n]] # kill duplicates
     mac_to_ip = {}
     router_options = [] # computed list of what could be a router
     for ip in ip_list: # for each IP that might be a router
@@ -695,14 +738,17 @@ def main():
             mac = getmac.get_mac_address(ip6=str(ip))
         else:
             raise TypeError("ip must be ipaddress")
-        if mac == None or mac == '00:00:00:00:00:00': # unroutable IP or unreachable (no host at IP)
+        if mac == None: # unroutable IP
+            continue
+        if mac == '00:00:00:00:00:00': # unreachable (no host at IP)
             continue
         if mac in mac_to_ip: # duplicate MAC
             continue
         mac_to_ip[mac] = ip
         found = False
-        hostkey = add_line_breaks(ssh_keyscan(str(ip)), line_len=64) # often takes a couple of seconds
-        # note we don't match based on MAC because routers can be reset, plus some routers generate the MAC address for certain interfaces at boot time
+        hostkey = add_line_breaks(ssh_keyscan(str(ip)), line_len=64) # takes a few seconds
+        # note we don't match based on MAC because routers can be reset, plus some ...
+        #     routers generate the MAC address for certain interfaces at boot time
         for r in conf.routers: # look for matching hostkey in conf data
             if r.ssh_hostkey == hostkey:
                 r.ip = str(ip) # update IP if it has changed since config file was saved
@@ -728,17 +774,20 @@ def main():
         except AttributeError: # if no passwords, then it's a previously-unknown router
             router.generate_passwords()
             router.generate_ssh_keys()
-            # FIXME: guide user on setting up a new PIA account (https://www.privateinternetaccess.com/, check email)
+            # FIXME: guide user on setting up a new PIA account (i.e. ...
+            #     sign up at https://www.privateinternetaccess.com/, check email, etc.)
             router.vpn_username = input("Enter the PIA username to use on this router: ")
             router.vpn_password = input("Enter the PIA password to use on this router: ")
-            # FIXME: guide user on chooseing region (https://www.privateinternetaccess.com/pages/network/)
+            # FIXME: guide user on choosing region; see ...
+            #     https://www.privateinternetaccess.com/pages/network/
             router.vpn_server_host = input("Enter the PIA region to use on this router: ")
             conf.routers.append(router)
             conf.save()
             router.set_password_on_router()
         router.connect_ssh()
         if router.client == None: # couldn't authenticate - maybe router was reset
-            print_msg(1, "Unable to connect to {} at {}. Trying to reset password.".format(router.nickname, router.ip))
+            print_msg(1, "Unable to connect to {} at {}. Trying to reset password."
+                    .format(router.nickname, router.ip))
             router.set_password_on_router()
             router.connect_ssh()
         if router.client == None: # couldn't authenticate
@@ -770,11 +819,13 @@ def main():
             #uci show |grep -v '^wireless..wifi-iface....key='
             #cat /tmp/openvpn.log
             #iptables-save
-            --- group safecheck1 --- # verify router WiFi password has not yet been changed; FIXME: allow user to continue anyhow
+            --- group safecheck1 --- # verify router WiFi password has not yet been ...
+            #     changed; FIXME: allow user to continue anyhow
             cg:assert `uci get wireless.@wifi-iface[0].key` == 'goodlife'
             --- group pwlangtz1 passwords, timezone ---
             uci set glconfig.general.password={http_password_sha256}
-            uci set wireless.@wifi-iface[0].key={wifi_password} # does not take effect until router is rebooted
+            uci set wireless.@wifi-iface[0].key={wifi_password} # does not take effect until ...
+            #     router is rebooted
             uci set glconfig.general.language=en # choose English for the http UI
             uci set luci.main.lang=en
             uci set system.@system[0].zonename=UTC # use UTC
@@ -790,7 +841,8 @@ def main():
             chmod 770 /etc/openvpn/restart-if-needed.sh
             --- group dns1 ---
             # set specific DNS servers so that the ISP's servers are not used
-            # FIXME: uci commands using '[-1]' cannot be harmlessly re-run; maybe use a 'from' and 'to' version for each group
+            # FIXME: uci commands using '[-1]' cannot be harmlessly re-run; maybe use a ...
+            #     'from' and 'to' version for each group
             uci add_list dhcp.@dnsmasq[-1].server='9.9.9.9'
             uci add_list dhcp.@dnsmasq[-1].server='149.112.112.112'
             uci add_list dhcp.@dnsmasq[-1].noresolv=1
@@ -800,9 +852,16 @@ def main():
             uci set glconfig.general.force_dns=yes
             uci commit
             --- group sysctl1 ---
-            # note IPv6 should be disabled until we can properly address the security implications ([more info](https://helpdesk.privateinternetaccess.com/hc/en-us/articles/232324908-Why-Do-You-Block-IPv6-)).
-            # FIXME: needs blank line and comment before these lines, but then wouldn't be re-doable
-            grep -v -e ^net.ipv6.conf.all.disable_ipv6 -e ^net.ipv6.conf.default.disable_ipv6 -e ^net.ipv6.conf.lo.disable_ipv6 /etc/sysctl.conf >/tmp/sysctl
+            # note IPv6 should be disabled until we can properly address the security ...
+            #     implications; see ...
+            #     https://www.privateinternetaccess.com/helpdesk/kb/articles/why-do-you-block-ipv6
+            # FIXME: needs blank line and comment before these lines, but then ...
+            #     wouldn't be re-doable
+            grep -v \
+                 -e ^net.ipv6.conf.all.disable_ipv6 \
+                 -e ^net.ipv6.conf.default.disable_ipv6 \
+                 -e ^net.ipv6.conf.lo.disable_ipv6 \
+                 /etc/sysctl.conf >/tmp/sysctl
             echo 'net.ipv6.conf.all.disable_ipv6=1' >>/tmp/sysctl
             echo 'net.ipv6.conf.default.disable_ipv6=1' >>/tmp/sysctl
             echo 'net.ipv6.conf.lo.disable_ipv6=1' >>/tmp/sysctl
@@ -844,30 +903,47 @@ def main():
             # install OpenVPN and iptables tools (OpenVPN is pre-installed on GL-iNet routers)
             # FIXME: 'opkg update' may take a long time so provide status to user
             opkg update # FIXME: if opkg fails, reboot router and retry
-            if   [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn; fi # OpenWrt older than Chaos Calmer
-            if ! [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn-openssl; fi # Chaos Calmer and later
+            if   [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then \
+                opkg install openvpn; \
+            fi # OpenWrt older than Chaos Calmer
+            if ! [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then \
+                opkg install openvpn-openssl; \
+            fi # Chaos Calmer and later
             --- group opkgb1 ---
-            if ! ( [ -f /tmp/opkg-lists/packages ] || [ -f /tmp/opkg-lists/*_packages ] ) ; then opkg update; fi # FIXME: if opkg fails, reboot router and retry
+            if ! ( [ -f /tmp/opkg-lists/packages ] || [ -f /tmp/opkg-lists/*_packages ] ) ; then \
+                opkg update; \
+            fi # FIXME: if opkg fails, reboot router and retry
             opkg install kmod-ipt-filter iptables-mod-filter # for iptables --match string
             --- group noleak1 ---
             # prevent leaking data to the ISP
             # FIXME: uci commands using '[-1]' cannot be harmlessly re-run
             uci add firewall rule
-            uci set firewall.@rule[-1].name='Block all DNS to ISP except *.privateinternetaccess.com'
+            uci set firewall.@rule[-1].name=\
+                'Block all DNS to ISP except *.privateinternetaccess.com'
             uci set firewall.@rule[-1].dest=wan
             uci set firewall.@rule[-1].family=ipv4
             uci set firewall.@rule[-1].proto=tcpudp
             uci set firewall.@rule[-1].dest_port=53
-            uci set firewall.@rule[-1].extra='--match string --algo bm ! --hex-string |15|privateinternetaccess|03|com|00| --from 40 --to 66'
+            echo -n '--match string '                                       >/tmp/extr
+            echo -n '--algo bm '                                           >>/tmp/extr
+            echo -n '! --hex-string |15|privateinternetaccess|03|com|00| ' >>/tmp/extr
+            echo -n '--from 40 --to 66'                                    >>/tmp/extr
+            echo -n '' >>/tmp/extr
+            uci set firewall.@rule[-1].extra=$(cat /tmp/extr)
             uci set firewall.@rule[-1].target=REJECT
             uci add firewall rule
-            uci set firewall.@rule[-1].name='Allow LAN clients DNS to ISP for *.privateinternetaccess.com'
+            uci set firewall.@rule[-1].name=\
+                'Allow LAN clients DNS to ISP for *.privateinternetaccess.com'
             uci set firewall.@rule[-1].src=lan
             uci set firewall.@rule[-1].dest=wan
             uci set firewall.@rule[-1].family=ipv4
             uci set firewall.@rule[-1].proto=tcpudp
             uci set firewall.@rule[-1].dest_port=53
-            uci set firewall.@rule[-1].extra='--match string --algo bm   --hex-string |15|privateinternetaccess|03|com|00| --from 40 --to 66'
+            echo -n '--match string '                                     >/tmp/extr
+            echo -n '--algo bm '                                         >>/tmp/extr
+            echo -n '--hex-string |15|privateinternetaccess|03|com|00| ' >>/tmp/extr
+            echo -n '--from 40 --to 66'                                  >>/tmp/extr
+            uci set firewall.@rule[-1].extra=''
             uci set firewall.@rule[-1].target=ACCEPT
             uci add firewall rule
             uci set firewall.@rule[-1].name='Block LAN to ISP (TCP) except ssh'
@@ -887,7 +963,8 @@ def main():
             uci set firewall.@rule[-1].target=REJECT
             uci commit firewall
             --- group starta1 ---
-            # it seems that `/etc/init.d/openvpn enable` isn't reliable and `/etc/init.d/openvpn start` (run at boot) starts a new process every 5 seconds
+            # it seems that `/etc/init.d/openvpn enable` isn't reliable and ...
+            #     `/etc/init.d/openvpn start` (run at boot) starts a new process every 5 seconds
             # use cron to check every 60 seconds if OpenVPN is working
             (crontab -l 2>/dev/null; echo '* * * * * /etc/openvpn/restart-if-needed.sh') |crontab -
             --- group complete1 --- # end marker
@@ -897,7 +974,8 @@ def main():
             if update_count > 0:
                 router.exec('reboot')
         except RemoteExecutionError:
-            raise CGError("Unable to fully configure router {}. Reboot reboot router and try again.".format(router.nickname)) # FIXME: automate this
+            raise CGError("Unable to fully configure router {}. Reboot reboot router "
+                    + "and try again.".format(router.nickname)) # FIXME: automate this
         # all groups successfully updated
     except:
         router.close() # it's important to close Paramiko client
@@ -916,31 +994,6 @@ if __name__ == '__main__':
 
 
 # FIXME: implement unit tests
-# FIXME: fix long lines in source code
 # FIXME: implement router testing (see below)
-'''
-#### 14. test
-* Wait for the router to reboot and reconnect WiFi using [wifiPassword].
-* From the client computer, test a few websites and download a large file (30 seconds or more).
-#wget -q -O- 'https://www.privateinternetaccess.com/' |grep 'You are protected by PIA' # * Test that your IP is from PIA (e.g. banner at top of PIA home page should say, "You are protected by PIA")
-* Test that DNS is not leaking (none of the DNS addresses displayed should be in same country as the router) at <https://ipleak.net/> (an additional DNS leak test is at <https://dnsleaktest.com/>).
-* Test that IPv6 is blocked:  <http://ipv6-test.com/>.
-* Note--replace 'eth0' below with the ISP-facing device, probably what is displayed by:  ip route show |grep ^default |awk '{print $5}'
-* Test that  DNS and traffic are completely blocked when OpenVPN dies or the connection is lost; this will also test that OpenVPN automatically restarts:
-	* Preparation--on router:  ``opkg update && opkg install tcpdump``
-	* Terminal window 1--on router:  ``tcpdump -n -i eth0 '(not port 1198) and (tcp or udp)'``
-	* Terminal window 2--on router:  ``for i in `seq 10000`; do ping -c 1 -q a$i.example.com; done |grep ^PING``
-	* Terminal window 3--on client computer:  ``for i in `seq 10000`; do ping -c 1 -q b$i.example.com; done |grep ^PING``
-	* Terminal window 4--on router:  ``ps |grep '[o]penvpn'; sleep 1; killall openvpn; sleep 1; ps |grep '[o]penvpn'; sleep 10; ps |grep '[o]penvpn'``
-	* After running the above command, watch the tcpdump window. After a couple of seconds, you should see some queries for privateinternetaccess.com but **not any other queries**. If you don't see any tcpdump activity, wait a few mintues for the DNS cache to time out. The above command should list exactly 2 lines--the old and the new OpenVPN instances.
-
-#### notes and links
-* If the VPN connects but only very simple web pages load ([example](http://www.neverhttps.com/)), add this line to the OpenVPN .conf file and reboot again:  ``mssfix 1300``
-* To allow ssh via WAN port on OpenWrt:  <http://192.168.8.1/cgi-bin/luci/> > Network > Firewall > Traffic Rules > Open ports on router > open port TCP 22 > Save and apply
-* [PIA encryption/auth settings](https://helpdesk.privateinternetaccess.com/hc/en-us/articles/225274288-Which-encryption-auth-settings-should-I-use-for-ports-on-your-gateways-)
-* [PIA OpenVPN config files](https://helpdesk.privateinternetaccess.com/hc/en-us/articles/218984968-What-is-the-difference-between-the-OpenVPN-config-files-on-your-website-)
-* PIA [Setting up a Router running LEDE Firmware](https://helpdesk.privateinternetaccess.com/hc/en-us/articles/115005760646-Setting-up-a-Router-running-LEDE-Firmware) (contains lots of errors)
-* [Setting an OpenWrt Based Router as OpenVPN Client](https://github.com/StreisandEffect/streisand/wiki/Setting-an-OpenWrt-Based-Router-as-OpenVPN-Client)
-* It is probably possible to [upgrade the firmware via CLI](https://forum.lede-project.org/t/a-rough-writeup-for-the-commandline-firmware-upgrade-wikipage/464).
-
-'''
+# test that your IP is from PIA via: wget -q -O- 'https://www.privateinternetaccess.com/'  ...
+#     |grep 'You are protected by PIA'
