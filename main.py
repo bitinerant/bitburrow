@@ -857,11 +857,7 @@ def main():
             #     https://www.privateinternetaccess.com/helpdesk/kb/articles/why-do-you-block-ipv6
             # FIXME: needs blank line and comment before these lines, but then ...
             #     wouldn't be re-doable
-            grep -v \
-                 -e ^net.ipv6.conf.all.disable_ipv6 \
-                 -e ^net.ipv6.conf.default.disable_ipv6 \
-                 -e ^net.ipv6.conf.lo.disable_ipv6 \
-                 /etc/sysctl.conf >/tmp/sysctl
+            grep -v -e ^net.ipv6.conf.all.disable_ipv6 -e ^net.ipv6.conf.default.disable_ipv6 -e ^net.ipv6.conf.lo.disable_ipv6 /etc/sysctl.conf >/tmp/sysctl
             echo 'net.ipv6.conf.all.disable_ipv6=1' >>/tmp/sysctl
             echo 'net.ipv6.conf.default.disable_ipv6=1' >>/tmp/sysctl
             echo 'net.ipv6.conf.lo.disable_ipv6=1' >>/tmp/sysctl
@@ -903,47 +899,30 @@ def main():
             # install OpenVPN and iptables tools (OpenVPN is pre-installed on GL-iNet routers)
             # FIXME: 'opkg update' may take a long time so provide status to user
             opkg update # FIXME: if opkg fails, reboot router and retry
-            if   [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then \
-                opkg install openvpn; \
-            fi # OpenWrt older than Chaos Calmer
-            if ! [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then \
-                opkg install openvpn-openssl; \
-            fi # Chaos Calmer and later
+            if   [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn; fi # OpenWrt older than Chaos Calmer
+            if ! [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn-openssl; fi # Chaos Calmer and later
             --- group opkgb1 ---
-            if ! ( [ -f /tmp/opkg-lists/packages ] || [ -f /tmp/opkg-lists/*_packages ] ) ; then \
-                opkg update; \
-            fi # FIXME: if opkg fails, reboot router and retry
+            if ! ( [ -f /tmp/opkg-lists/packages ] || [ -f /tmp/opkg-lists/*_packages ] ) ; then opkg update; fi # FIXME: if opkg fails, reboot router and retry
             opkg install kmod-ipt-filter iptables-mod-filter # for iptables --match string
             --- group noleak1 ---
             # prevent leaking data to the ISP
             # FIXME: uci commands using '[-1]' cannot be harmlessly re-run
             uci add firewall rule
-            uci set firewall.@rule[-1].name=\
-                'Block all DNS to ISP except *.privateinternetaccess.com'
+            uci set firewall.@rule[-1].name='Block all DNS to ISP except *.privateinternetaccess.com'
             uci set firewall.@rule[-1].dest=wan
             uci set firewall.@rule[-1].family=ipv4
             uci set firewall.@rule[-1].proto=tcpudp
             uci set firewall.@rule[-1].dest_port=53
-            echo -n '--match string '                                       >/tmp/extr
-            echo -n '--algo bm '                                           >>/tmp/extr
-            echo -n '! --hex-string |15|privateinternetaccess|03|com|00| ' >>/tmp/extr
-            echo -n '--from 40 --to 66'                                    >>/tmp/extr
-            echo -n '' >>/tmp/extr
-            uci set firewall.@rule[-1].extra=$(cat /tmp/extr)
+            uci set firewall.@rule[-1].extra='--match string --algo bm ! --hex-string |15|privateinternetaccess|03|com|00| --from 40 --to 66'
             uci set firewall.@rule[-1].target=REJECT
             uci add firewall rule
-            uci set firewall.@rule[-1].name=\
-                'Allow LAN clients DNS to ISP for *.privateinternetaccess.com'
+            uci set firewall.@rule[-1].name='Allow LAN clients DNS to ISP for *.privateinternetaccess.com'
             uci set firewall.@rule[-1].src=lan
             uci set firewall.@rule[-1].dest=wan
             uci set firewall.@rule[-1].family=ipv4
             uci set firewall.@rule[-1].proto=tcpudp
             uci set firewall.@rule[-1].dest_port=53
-            echo -n '--match string '                                     >/tmp/extr
-            echo -n '--algo bm '                                         >>/tmp/extr
-            echo -n '--hex-string |15|privateinternetaccess|03|com|00| ' >>/tmp/extr
-            echo -n '--from 40 --to 66'                                  >>/tmp/extr
-            uci set firewall.@rule[-1].extra=''
+            uci set firewall.@rule[-1].extra='--match string --algo bm   --hex-string |15|privateinternetaccess|03|com|00| --from 40 --to 66'
             uci set firewall.@rule[-1].target=ACCEPT
             uci add firewall rule
             uci set firewall.@rule[-1].name='Block LAN to ISP (TCP) except ssh'
@@ -994,6 +973,6 @@ if __name__ == '__main__':
 
 
 # FIXME: implement unit tests
-# FIXME: implement router testing (see below)
+# FIXME: implement router testing (#14 in README.md)
 # test that your IP is from PIA via: wget -q -O- 'https://www.privateinternetaccess.com/'  ...
 #     |grep 'You are protected by PIA'
