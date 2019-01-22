@@ -480,8 +480,8 @@ class Router(yaml.YAMLObject):
                     print_msg(1, ''.join(esc_seq_re.split(data.decode())), end='')
                 print_msg(1, '') # make sure we end with a newline
         except (ConnectionRefusedError, EOFError):
-            raise CGError("Unable to connect to {} at {}. Please factory-reset your "
-                    + " router and try again.".format(self.nickname, self.ip))
+            raise CGError("Unable to connect to {} at {}. ".format(self.nickname, self.ip)
+                    + "Please factory-reset your router and try again.")
         print_msg(1, "</telnet_log>")
 
     def connect_ssh(self):
@@ -501,34 +501,37 @@ class Router(yaml.YAMLObject):
         privkey_file.write(self.ssh_privkey)
         privkey_file.seek(0)
         privkey = paramiko.RSAKey.from_private_key(privkey_file)
+        connect_method = 'none'
         try: # first try to connect using private ssh key
             self.client.connect(
                 hostname=self.ip,
                 username='root',
                 pkey=privkey,
-                password=None, # don't use password this time; we want to know if ssh key fails
+                # don't use password this time because we want to know if ssh key fails; ...
+                #     could improve speed by using low-level class, but key should normally ...
+                #     work so not worth it; see https://stackoverflow.com/questions/54296230
+                password=None,
                 allow_agent=False,
                 look_for_keys=False,
             )
-            self.last_connect = time.strftime("%Y-%m-%d_%H:%M:%S", time.gmtime())
-            print_msg(1, "Connected to {} via ssh key".format(self.nickname))
-            return # successful connection via private key
+            connect_method = 'ssh key'
         except paramiko.ssh_exception.AuthenticationException:
-            pass
-        try: # if private ssh key fails, try the password
-            self.client.connect( #
-                hostname=self.ip,
-                username='root',
-                pkey=None,
-                password=self.router_password,
-                allow_agent=False,
-                look_for_keys=False,
-            )
-            self.last_connect = time.strftime("%Y-%m-%d_%H:%M:%S", time.gmtime())
-            print_msg(1, "Warning: connecting via ssh key failed")
-            print_msg(1, "Connected to {} via password".format(self.nickname))
-        except paramiko.ssh_exception.AuthenticationException:
-            self.client = None
+            try: # if private ssh key fails, try the password
+                self.client.connect(
+                    hostname=self.ip,
+                    username='root',
+                    pkey=None,
+                    password=self.router_password,
+                    allow_agent=False,
+                    look_for_keys=False,
+                )
+                print_msg(1, "Warning: connecting via ssh key failed")
+                connect_method = 'password'
+            except paramiko.ssh_exception.AuthenticationException:
+                self.client = None
+        self.last_connect = (time.strftime("%Y-%m-%d_%H:%M:%S", time.gmtime()) 
+                + " {}".format(connect_method))
+        print_msg(1, "Connected to {} via {}".format(self.nickname, connect_method))
 
     def exec(self, command, okay_to_fail=False):
         print_msg(1, 'Router cmd:    ' + command)
@@ -566,9 +569,10 @@ class Router(yaml.YAMLObject):
         data_file.close()
 
     def close(self):
-        print_msg(1, "Closing client connection")
-        self.client.close()
-        self.client = None
+        if self.client:
+            print_msg(1, "Closing client connection")
+            self.client.close()
+            self.client = None
 
     def install_files(self):
         vpn_conf = {
@@ -953,8 +957,8 @@ def main():
             if update_count > 0:
                 router.exec('reboot')
         except RemoteExecutionError:
-            raise CGError("Unable to fully configure router {}. Reboot reboot router "
-                    + "and try again.".format(router.nickname)) # FIXME: automate this
+            raise CGError("Unable to fully configure router {}. ".format(router.nickname)
+                    + "Reboot reboot router and try again.") # FIXME: automate this
         # all groups successfully updated
     except:
         router.close() # it's important to close Paramiko client
