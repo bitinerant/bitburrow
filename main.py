@@ -23,10 +23,14 @@ from hashlib import sha256
 import yaml # FIXME: consider ruamel.yaml - https://stackoverflow.com/a/36760452/10590519
 import time
 import textwrap
+import NetworkManager # needs sudo apt install python3-networkmanager
+from dbus import exceptions
+import uuid
 
 
 class CGError(Exception):
     pass
+
 
 class RemoteExecutionError(Exception):
     pass
@@ -65,6 +69,116 @@ if args.debug:
     # if args.debug:
     #     code.interact(local=locals())
 
+
+def wifi_active_ssids():
+    """Return a dict of MAC:SSID of currently-connected WiFi connections; note list may contain 
+    MACs which were seen for the AP but not currently (or even ever) associated with"""
+    macs_found = {}
+    for conn in NetworkManager.NetworkManager.ActiveConnections:
+        settings = conn.Connection.GetSettings()['connection']
+        if settings['type'] != '802-11-wireless':
+            continue
+        wifi = conn.Connection.GetSettings()['802-11-wireless']
+        ssid = wifi['ssid']
+        for mac in wifi['seen-bssids']:
+            macs_found[mac.lower()] = ssid
+    return macs_found
+
+
+def wifi_available_ssids():
+    """Initiate a new WiFi scan, wait for it to complete, and return a (possibly empty) 
+    dict of MAC:SSID of available WiFi networks; usually takes a few seconds; it is normal 
+    to have multiple MACs with the same SSID"""
+    # based on: https://github.com/seveas/python-networkmanager/blob/master/examples/ssids.py
+    macs_found = {}
+    os.system('nmcli dev wifi rescan 2>/dev/null') # FIXME: use NetworkManager module instead
+    # FIXME: does not consistently find the full list of nearby networks
+    time.sleep(0.4) # wait a minimum of 0.4 seconds
+    for dev in NetworkManager.NetworkManager.GetDevices():
+        if dev.DeviceType != NetworkManager.NM_DEVICE_TYPE_WIFI:
+            continue
+        sig_levels = None
+        # wait until WiFi scan has completed; normally 0.8 - 3.8 seconds (including the 0.4 above)
+        for delay in range(4,68): # tenths of seconds; upper limit slightly arbitrary
+            try:
+                # AccessPoint docs: https://developer.gnome.org/NetworkManager/stable/gdbus-org.freedesktop.NetworkManager.AccessPoint.html
+                aps = dev.GetAccessPoints()
+                new_sig_levels = [a.Strength for a in aps] # list of WiFi signal levels for APs
+            except (exceptions.DBusException, NetworkManager.ObjectVanished):
+                # ~5% of the scans, we get: No such interface 'org.freedesktop.DBus.Properties'
+                time.sleep(0.1)
+                continue
+            # a change in signal levels means WiFi scan has completed
+            if sig_levels != None and new_sig_levels != sig_levels:
+                print_msg(2, "WiFi scan delay {}, signal levels {}".format(delay, new_sig_levels))
+                for ap in aps:
+                    macs_found[ap.HwAddress.lower()] = ap.Ssid
+                    #print("{}".format(ap.Ssid))
+                    #attributes = [attr for attr in dir(ap) if not attr.startswith('__')]
+                    #for a in attributes:
+                    #    if a == 'introspection_data' or a == 'proxy':
+                    #        continue
+                    #    if  a == 'properties' or a == '_proxy' or a == 'connect_to_signal':
+                    #        continue
+                    #    print("    {} : {}".format(a, getattr(ap, a)))
+                break
+            sig_levels = new_sig_levels
+            time.sleep(0.1)
+    return macs_found
+
+
+def wifi_connect(target_ssid, password):
+    # based on: https://github.com/seveas/python-networkmanager/blob/master/examples/n-m
+    # and: https://github.com/seveas/python-networkmanager/blob/master/examples/add_connection.py
+    nm_nm = NetworkManager.NetworkManager
+    for c in nm_nm.ActiveConnections:
+        s =c.Connection.GetSettings()
+        if '802-11-wireless' in s and s['802-11-wireless']['ssid'] == target_ssid:
+            print_msg(1,"Already connected to WiFi network {}".format(target_ssid))
+            return
+    conn_to_activate = None
+    for twice in range(0,2):
+        for c in NetworkManager.Settings.ListConnections():
+            if c.GetSettings()['connection']['type'] != '802-11-wireless':
+                continue
+            #id = c.GetSettings()['connection']['id']
+            ssid = c.GetSettings()['802-11-wireless']['ssid'] # usually id == ssid
+            if ssid == target_ssid:
+                conn_to_activate = c
+                break
+        if conn_to_activate != None: # found - exit 'twice' loop
+            break # don't use supplied password if connection already exists
+        print_msg(2, "Adding new NetworkManager connection {}".format(target_ssid))
+        new_connection = { # add a new connection
+            '802-11-wireless': {
+                'mode': 'infrastructure',
+                'security': '802-11-wireless-security',
+                'ssid': target_ssid,
+            },
+            '802-11-wireless-security': {
+                'auth-alg': 'open',
+                'key-mgmt': 'wpa-psk',
+                'psk': password,
+            },
+            'connection': {
+                'id': target_ssid,
+                #'permissions': [],
+                'type': '802-11-wireless',
+                'uuid': str(uuid.uuid4()),
+            },
+        }
+        NetworkManager.Settings.AddConnection(new_connection)
+        # now repeat 'twice' loop to find the just-added item in ListConnections()
+    for dev in nm_nm.GetDevices():
+        if dev.DeviceType == NetworkManager.NM_DEVICE_TYPE_WIFI:
+            #if dev.State == NetworkManager.NM_DEVICE_STATE_DISCONNECTED:
+            print_msg(1,"Connecting to WiFi network {}".format(target_ssid))
+            nm_nm.ActivateConnection(conn_to_activate, dev, "/")
+            time.sleep(3) # FIXME: rather than sleep(), wait until network connects
+            return
+    raise CGError("Cannot connect to Wifi network {} - no suitable devices are available"
+                .format(target_ssid))
+ 
 
 class VpnProvider():
     pass
@@ -480,6 +594,9 @@ class Router(yaml.YAMLObject):
                     print_msg(1, ''.join(esc_seq_re.split(data.decode())), end='')
                 print_msg(1, '') # make sure we end with a newline
         except (ConnectionRefusedError, EOFError):
+            # 'official' instructions to reset: Press and hold the "Reset" button for ...
+            # 10 seconds, then release your finger. You will see LEDs flash in a ...
+            # pattern. Wait for the router to reboot and then start over.
             raise CGError("Unable to connect to {} at {}. ".format(self.nickname, self.ip)
                     + "Please factory-reset your router and try again.")
         print_msg(1, "</telnet_log>")
@@ -728,7 +845,32 @@ class Config():
 ### main ###
 def main():
     conf = Config.load()
-    # FIXME: connect to correct WiFi network - maybe python-networkmanager
+    factory_ssids = { # list from https://docs.gl-inet.com/en/2/setup/first-time_setup/
+        # SSID regex                    : password
+        r'^GL-iNet-[0-9A-Fa-f]{3}$'     : 'goodlife',
+        r'^GL-AR150-[0-9A-Fa-f]{3}$'    : 'goodlife', # https://wikidevi.com/wiki/GL.iNet_GL-AR150
+        r'^GL-AR300M-[0-9A-Fa-f]{3}$'   : 'goodlife', # https://wikidevi.com/wiki/GL.iNet_GL-AR300M
+    }
+    nets = wifi_available_ssids() # scan for nearby WiFi networks
+    known_ssids = {} # SSID : password
+    for s in list(set(nets.values())): # for each unique SSID
+        for r in conf.routers: # test SSIDs from conf file _first_
+            if s == r.ssid:
+                known_ssids[s] = r.wifi_password
+                # FIXME: handle duplicate SSIDs in conf file with different passwords
+        for e in factory_ssids: # test regex list _second_
+            if s not in known_ssids and re.search(e, s): # only add if it is not yet in dict
+                known_ssids[s] = factory_ssids[e]
+                # FIXME: try factory password even if already found - in case router was reset
+    if len(known_ssids) == 0:
+        print_msg(1, "Visible networks: {}".format(', '.join(list(set(nets.values())))))
+        raise CGError("Unable to find WiFi network for a supported router")
+    elif len(known_ssids) > 1:
+        err = '\n'.join("Possible router: {}".format(r) for r in known_ssids) + '\n'
+        raise CGError(err + "Multiple possible networks found") # FIXME: allow user to choose one
+    ssid = list(known_ssids.keys())[0]
+    ssid_password = known_ssids[ssid]
+    wifi_connect(ssid, ssid_password)
     ip_list_full = [ipaddress.ip_address(r.ip) for r in conf.routers] # IPs from config file
     ip_list_full += possible_router_ips() # first IP of each detected network
     # note ip_list_full will normally include 192.168.8.1
@@ -747,6 +889,8 @@ def main():
         if mac == '00:00:00:00:00:00': # unreachable (no host at IP)
             continue
         if mac in mac_to_ip: # duplicate MAC
+            print_msg(1, "Using MAC {mac} on {ip1}, ignoring duplicate on {ip2}"
+                    .format(mac=mac, ip1=str(mac_to_ip[mac]), ip2=str(ip)))
             continue
         mac_to_ip[mac] = ip
         found = False
@@ -764,9 +908,7 @@ def main():
             r = Router(ip, mac) # previously-unknown router
             router_options.append(r)
     if len(router_options) > 1:
-        err = ''
-        for r in router_options:
-            err += "Possible router: {} (ip {}, mac {})\n".format(r.nickname, r.ip, r.mac)
+        err = '\n'.join("Possible router: {} (ip {})".format(r.nickname, r.ip)) + '\n'
         raise CGError(err + "Multiple possible routers found") # FIXME: allow user to choose one
     if len(router_options) == 0:
         raise CGError("No possible routers found") # FIXME: help user get router connected
@@ -776,12 +918,18 @@ def main():
         try:
             router.router_password
         except AttributeError: # if no passwords, then it's a previously-unknown router
+            router.ssid = ssid
+            # if router also serves as AP, once we have connected to the router ...
+            #     via ssh, this could be used instead of above ...
+            #     line: router.ssid = router.exec('uci get wireless.@wifi-iface[0].ssid')
             router.generate_passwords()
             router.generate_ssh_keys()
             # FIXME: guide user on setting up a new PIA account (i.e. ...
             #     sign up at https://www.privateinternetaccess.com/, check email, etc.)
             router.vpn_username = input("Enter the PIA username to use on this router: ")
             router.vpn_password = input("Enter the PIA password to use on this router: ")
+            # FIXME: verify vpn_username and vpn_password because if they're not working, ...
+            #     troubleshooting later will be difficult
             # FIXME: guide user on choosing region; see ...
             #     https://www.privateinternetaccess.com/pages/network/
             router.vpn_server_host = input("Enter the PIA region to use on this router: ")
@@ -825,6 +973,7 @@ def main():
             #iptables-save
             --- group safecheck1 --- # verify router WiFi password has not yet been ...
             #     changed; FIXME: allow user to continue anyhow
+            # FIXME: use password from dict factory_ssids
             cg:assert `uci get wireless.@wifi-iface[0].key` == 'goodlife'
             --- group pwlangtz1 passwords, timezone ---
             uci set glconfig.general.password={http_password_sha256}
@@ -956,6 +1105,8 @@ def main():
             update_count = router.update_groups(groups_gl_inet)
             if update_count > 0:
                 router.exec('reboot')
+            else:
+                print_msg(1, "Router is already up-to-date")
         except RemoteExecutionError:
             raise CGError("Unable to fully configure router {}. ".format(router.nickname)
                     + "Reboot reboot router and try again.") # FIXME: automate this
