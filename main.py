@@ -1120,6 +1120,6 @@ if __name__ == '__main__':
 
 
 # FIXME: implement unit tests
-# FIXME: implement router testing (#14 in README.md)
+# FIXME: implement router testing (#7 in README.md)
 # Test that your IP is from PIA via:
 # wget -q -O- 'https://www.privateinternetaccess.com/' |grep 'You are protected by PIA'
