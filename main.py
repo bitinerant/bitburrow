@@ -59,8 +59,8 @@ parser.add_argument('-y','--yes', action='store_true',
 parser.add_argument('-d','--debug', action='store_true', 
         help="debug mode")
 # Mandatory arguments
-parser.add_argument('command', choices=('configure', 'update'), metavar='command',
-        help="task to perform: configure or update")
+parser.add_argument('command', choices=('configure', 'update', 'shell'), metavar='command',
+        help="task to perform: configure, update, or shell")
 args = parser.parse_args()
 
 
@@ -645,13 +645,11 @@ class Router(yaml.YAMLObject):
 
     def exec(self, command, okay_to_fail=False):
         print_msg(1, 'Router cmd:    ' + command)
-        (__, stdout, stderr) = self.client.exec_command(command)
+        __, stdout, stderr = self.client.exec_command(command)
         exitc = stdout.channel.recv_exit_status()
         out = ''
-        out_count = 0
         for line in stdout:
             out += line
-            out_count += 1
             print_msg(1, 'Router stdout: ' + line.rstrip())
         err0 = ''
         err_count = 0
@@ -666,7 +664,7 @@ class Router(yaml.YAMLObject):
             else:
                 raise RemoteExecutionError("Error running '{}' on router: {}"
                         .format(command, err0))
-        return out.rstrip() if out_count == 1 else out
+        return out
 
     def put(self, data, remote_path):
         # SFTP would be nice, but OpenWrt only supports SCP
@@ -713,7 +711,7 @@ class Router(yaml.YAMLObject):
                     if q == '"' or q == "'":
                         tokens.append(w[1:-1])
                     elif q == '`':  # use backticks as in bash shell
-                        tokens.append(self.exec(w[1:-1]))  # output when executed on router
+                        tokens.append(self.exec(w[1:-1]).rstrip())  # output when executed on router
                     else:
                         tokens.append(w)
                 if len(tokens) != 4 or (tokens[2] != '==' and tokens[2] != '!='):
@@ -834,8 +832,8 @@ class Config():
             raise CGError("Error saving configuration {}: {}".format(self.__conf_path__, err))
 
 
-def main():
-    conf = Config.load()
+def wifi_hunt(conf):
+    """Scan and connect to router's WiFi network. Return SSID, password."""
     factory_ssids = {  # list from: https://docs.gl-inet.com/en/2/setup/first-time_setup/
         # SSID regex                   : password
         r'^GL-iNet-[0-9A-Fa-f]{3}$'    : 'goodlife',
@@ -862,6 +860,11 @@ def main():
     ssid = list(known_ssids.keys())[0]
     ssid_password = known_ssids[ssid]
     wifi_connect(ssid, ssid_password)
+    return ssid, ssid_password
+
+
+def network_hunt(conf):
+    """Scan local networks for router. Return existing or new Router() instance."""
     ip_list_full = [ipaddress.ip_address(r.ip) for r in conf.routers]  # IPs from config file
     ip_list_full += possible_router_ips()  # first IP of each detected network
     # Note ip_list_full will normally include 192.168.8.1
@@ -903,16 +906,23 @@ def main():
         raise CGError(err + "Multiple possible routers found")  # FIXME: allow user to choose one
     if len(router_options) == 0:
         raise CGError("No possible routers found")  # FIXME: help user get router connected
+    router = router_options[0]
+    print_msg(1, "Using router {} (ip {})".format(router.nickname, router.ip))
+    return router
+
+
+def do_configure():
+    conf = Config.load()
+    ssid, ssid_password = wifi_hunt(conf)
+    router = network_hunt(conf)
     try:
-        router = router_options[0]
-        print_msg(1, "Using router {} (ip {}, mac {})".format(r.nickname, r.ip, r.mac))
         try:
             router.router_password
-        except AttributeError:  # if no passwords, then it's a previously-unknown router
+        except AttributeError:  # if no conf file password, then it's a previously-unknown router
             router.ssid = ssid
             # If router also serves as AP, once we have connected to the router via ssh, this
             # could be used instead of above line:
-            # router.ssid = router.exec('uci get wireless.@wifi-iface[0].ssid')
+            # router.ssid = router.exec('uci get wireless.@wifi-iface[0].ssid').rstrip()
             router.generate_passwords()
             router.generate_ssh_keys()
             # FIXME: guide user on setting up a new PIA account (i.e. sign up
@@ -1110,6 +1120,41 @@ def main():
     else:
         router.close()
         conf.save()
+
+
+def do_shell():
+    """Execute shell commands on the router. This is mostly for testing and as example code."""
+    conf = Config.load()
+    ssid, ssid_password = wifi_hunt(conf)
+    router = network_hunt(conf)
+    try:
+        router.connect_ssh()
+        if args.verbose > 1:
+            args.verbose = 1 # reduce verbosity for shell processing
+        cmd = ''
+        while cmd != 'exit':
+            try:
+                cmd = input("router> ")
+            except (EOFError, KeyboardInterrupt):
+                cmd = 'exit'
+            if cmd == '':
+                continue
+            try:
+                print(router.exec(cmd).rstrip())
+            except RemoteExecutionError as err:
+                print(err)
+    except:
+        router.close()  # docs emphasize importance of closing Paramiko client
+        raise
+    else:
+        router.close()
+
+
+def main():
+    if args.command == 'configure':
+        do_configure()
+    elif args.command == 'shell':
+        do_shell()
 
 
 if __name__ == '__main__':
