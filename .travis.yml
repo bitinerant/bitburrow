@@ -1,0 +1,17 @@
+language: python
+
+dist: xenial
+
+matrix:
+    include:
+        - python: "3.6"
+        - python: "3.7"
+
+install:
+  pip install tox
+
+script:
+  python3 -c "print('Hello World')"
+
+notifications:
+  email: false
