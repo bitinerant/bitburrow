@@ -51,13 +51,43 @@ For these instructions, you will need a computer with Ubuntu Linux installed.
 
 
 #### 6. configure the router
-* From a computer running Ubuntu Linux, download ``main.py``.
-* Install external dependencies listed near the top of the file under the ``From PyPI`` comment.
-* Run the script, e.g.:
-```
-cd cleargopher
-python3 main.py -v configure
-```
+
+* Use an Ubuntu 18.04 host.
+
+* Clone this project
+    
+    ```bash
+    $ git clone https://github.com/bitinerant/cleargopher.git
+    $ cd cleargopher
+    ```
+
+* Install required host dependencies.
+
+    ```bash
+    $ sudo apt install python3-venv python3-dbus python3-networkmanager
+    ```
+
+* Create a Python [virtual environment](https://docs.python.org/3/library/venv.html) and also use system packages
+  so that `python-dbus` can be properly linked in.
+
+    ```bash
+    $ python3 -m venv --system-site-packages venv
+    ```
+
+* Activate the virtual environment and install the required dependencies from PyPI.
+
+    ```bash
+    $ source venv/bin/activate
+    (venv) $ pip install --upgrade pip
+    (venv) $ pip install -r requirements.txt
+    ```
+
+* Run the main script within the activated virtual environment.
+
+    ```bash
+    (venv) $ ./main.py -v configure
+    ```
+
 * You will be prompted to enter the VPN username, password, and location from steps 2 and 3, above.
 
 #### 7. test
