@@ -61,6 +61,11 @@ parser.add_argument('-d','--debug', action='store_true',
 # Mandatory arguments
 parser.add_argument('command', choices=('configure', 'update', 'shell'), metavar='command',
         help="task to perform: configure, update, or shell")
+        # To get a real shell (in step 3 use 'router_password' from ~/.cleargopher/cleapher.conf):
+        # ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa  # if prompted, don't overwrite existing key
+        # ssh-keyscan 192.168.8.1 2>/dev/null |perl -pe 's|^[^ ]*|*|' >>~/.ssh/known_hosts
+        # cat ~/.ssh/id_rsa.pub |ssh root@192.168.8.1 'cat - >>/etc/dropbear/authorized_keys'
+        # ssh root@192.168.8.1  # no password needed from now on
 args = parser.parse_args()
 
 
@@ -140,7 +145,8 @@ def wifi_connect(target_ssid, password):
                 conn_to_activate = c
                 break
         if conn_to_activate != None:  # found - exit 'twice' loop
-            break  # don't use supplied password if connection already exists
+            # FIXME: update connection with supplied password - needed after 1st router reboot
+            break
         print_msg(2, "Adding new NetworkManager connection {}".format(target_ssid))
         new_connection = {  # add a new connection
             '802-11-wireless': {
@@ -515,6 +521,7 @@ class Router(yaml.YAMLObject):
     def generate_passwords(self):
         self.first_password = generate_new_password(length=12)
         self.router_password = generate_new_password(length=12)
+        # FIXME: use 4 random common words - easier to remember, stronger: 57^10 < 25000^4
         self.wifi_password = generate_new_password(length=10)
 
     def generate_ssh_keys(self):
@@ -600,7 +607,10 @@ class Router(yaml.YAMLObject):
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.RejectPolicy)  # ensure correct host key
         # Host key is normally a line in ~/.ssh/known_hosts
-        hostkey = self.ssh_hostkey.split(' ')
+        try:
+            hostkey = self.ssh_hostkey.split(' ')
+        except AttributeError:
+            raise CGError("Router has not yet been configured for ssh.")
         self.client.get_host_keys().add(
             self.ip,
             hostkey[0],
@@ -846,6 +856,7 @@ def wifi_hunt(conf):
         for r in conf.routers:  # test SSIDs from conf file _first_
             if s == r.ssid:
                 known_ssids[s] = r.wifi_password
+                # FIXME: after setting WiFi password and router reboot, update connection password
                 # FIXME: handle duplicate SSIDs in conf file with different passwords
         for e in factory_ssids:  # test regex list _second_
             if s not in known_ssids and re.search(e, s):
@@ -915,6 +926,7 @@ def do_configure():
     conf = Config.load()
     ssid, ssid_password = wifi_hunt(conf)
     router = network_hunt(conf)
+    # FIXME: verify internet connectivity (without the VPN) before continuing
     try:
         try:
             router.router_password
@@ -951,15 +963,15 @@ def do_configure():
         # must be written: \\n
         groups_gl_inet = '''
             --- group sysinfoa1 ---
-            # FIXME: don't abort if commands in this group fail
-            uname -a
-            date --utc '+%Y-%m-%d_%H:%M:%S'
-            cat /etc/banner |grep -v -e '^ ---------------' -e '^  \* ' -e '^ |' -e '^  __'
-            cat /etc/glversion
-            cat /etc/openwrt_release
-            cat /proc/cpuinfo
-            opkg print-architecture
-            traceroute -n -m 6 141.1.1.1
+            uname -a || true
+            date --utc '+%Y-%m-%d_%H:%M:%S' || true
+            cat /etc/banner |grep -v -e '^ ---------------' -e '^  \* ' -e '^ |' -e '^  __' || true
+            cat /etc/glversion || true
+            cat /etc/openwrt_release || true
+            cat /proc/cpuinfo || true
+            opkg print-architecture || true
+            /usr/sbin/openvpn --version || true
+            traceroute -n -m 6 141.1.1.1 || true
             --- group sysinfob1 ---
             #uptime
             #ip address show
@@ -1096,11 +1108,17 @@ def do_configure():
             uci set firewall.@rule[-1].extra='--match multiport ! --dports 1194,1198'
             uci set firewall.@rule[-1].target=REJECT
             uci commit firewall
+            --- group twothreefix1 ---
+            # Disable options not supported in OpenVPN 2.3
+            if /usr/sbin/openvpn --version |grep '^OpenVPN 2\.3\.' ; then sed -i -e 's/^pull-filter /#pull-filter /' /etc/openvpn/client.conf; fi
             --- group starta1 ---
             # It seems that `/etc/init.d/openvpn enable` isn't reliable and
             # `/etc/init.d/openvpn start` (run at boot) starts a new process every 5 seconds,
             # so we use cron to check every 60 seconds if OpenVPN is working.
             (crontab -l 2>/dev/null; echo '* * * * * /etc/openvpn/restart-if-needed.sh') |crontab -
+            --- group teststart1 ---
+            # Test OpenVPN start-up, e.g. errors in .conf file. Displayed messages are golden.
+            /usr/sbin/openvpn --cd /etc/openvpn --config /etc/openvpn/client.conf
             --- group complete1 ---  # end marker
         '''
         try:
