@@ -16,7 +16,7 @@ from cryptography.hazmat.primitives import serialization as crypto_serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend as crypto_default_backend
 from hashlib import sha256
-import yaml  # FIXME: consider ruamel.yaml: https://stackoverflow.com/a/36760452/10590519
+import yaml
 import time
 import textwrap
 from dbus import exceptions
@@ -97,8 +97,7 @@ def wifi_available_ssids():
     to have multiple MACs with the same SSID"""
     # Based on: https://github.com/seveas/python-networkmanager/blob/master/examples/ssids.py
     macs_found = {}
-    os.system('nmcli dev wifi rescan 2>/dev/null')  # FIXME: use NetworkManager module instead
-    # FIXME: does not consistently find the full list of nearby networks
+    os.system('nmcli dev wifi rescan 2>/dev/null')
     time.sleep(0.4)
     for dev in NetworkManager.NetworkManager.GetDevices():
         if dev.DeviceType != NetworkManager.NM_DEVICE_TYPE_WIFI:
@@ -145,7 +144,6 @@ def wifi_connect(target_ssid, password):
                 conn_to_activate = c
                 break
         if conn_to_activate != None:  # found - exit 'twice' loop
-            # FIXME: update connection with supplied password - needed after 1st router reboot
             break
         print_msg(2, "Adding new NetworkManager connection {}".format(target_ssid))
         new_connection = {  # add a new connection
@@ -171,7 +169,7 @@ def wifi_connect(target_ssid, password):
         if dev.DeviceType == NetworkManager.NM_DEVICE_TYPE_WIFI:
             print_msg(1,"Connecting to WiFi network {}".format(target_ssid))
             nm_nm.ActivateConnection(conn_to_activate, dev, "/")
-            time.sleep(3)  # FIXME: rather than sleep(), wait until network connects
+            time.sleep(3)
             return
     raise CGError("Cannot connect to Wifi network {} - no suitable devices are available"
                 .format(target_ssid))
@@ -325,9 +323,6 @@ class PrivateInternetAccess(VpnProvider):
                 dev tun
                 proto udp
                 # mssfix is needed to solve MTU issues (VPN stall) on some networks
-                # FIXME: for better throughput on correct links, don't use
-                # 'mssfix' unless needed; see:
-                # https://www.privateinternetaccess.com/archive/forum/discussion/4603
                 mssfix 1400
                 remote {server} 1198
                 resolv-retry infinite
@@ -465,7 +460,7 @@ def possible_router_ips():
 
 def ssh_keyscan(ip, port=22):
     try:
-        transport = paramiko.Transport((ip, port))  # FIXME: may block for a very long time
+        transport = paramiko.Transport((ip, port))
         transport.connect()
         key = transport.get_remote_server_key()
         transport.close()
@@ -521,7 +516,6 @@ class Router(yaml.YAMLObject):
     def generate_passwords(self):
         self.first_password = generate_new_password(length=12)
         self.router_password = generate_new_password(length=12)
-        # FIXME: use 4 random common words - easier to remember, stronger: 57^10 < 25000^4
         self.wifi_password = generate_new_password(length=10)
 
     def generate_ssh_keys(self):
@@ -702,7 +696,7 @@ class Router(yaml.YAMLObject):
             self.put(PrivateInternetAccess.file(filename=f, data=vpn_conf), d + '/' + f)
 
     def update_group(self, name, from_ver, to_ver, code):
-        if from_ver >= to_ver:  # FIXME: update needed if any {...} values changed
+        if from_ver >= to_ver:
             return
         print_msg(1, "Updating from {}{} to {}{}".format(name, from_ver, name, to_ver))
         for line in code:
@@ -856,18 +850,15 @@ def wifi_hunt(conf):
         for r in conf.routers:  # test SSIDs from conf file _first_
             if s == r.ssid:
                 known_ssids[s] = r.wifi_password
-                # FIXME: after setting WiFi password and router reboot, update connection password
-                # FIXME: handle duplicate SSIDs in conf file with different passwords
         for e in factory_ssids:  # test regex list _second_
             if s not in known_ssids and re.search(e, s):
                 known_ssids[s] = factory_ssids[e]
-                # FIXME: try factory password even if already found - in case router was reset
     if len(known_ssids) == 0:
         print_msg(1, "Visible networks: {}".format(', '.join(list(set(nets.values())))))
         raise CGError("Unable to find WiFi network for a supported router")
     elif len(known_ssids) > 1:
         err = '\n'.join("Possible router: {}".format(r) for r in known_ssids) + '\n'
-        raise CGError(err + "Multiple possible networks found")  # FIXME: allow user to choose one
+        raise CGError(err + "Multiple possible networks found")
     ssid = list(known_ssids.keys())[0]
     ssid_password = known_ssids[ssid]
     wifi_connect(ssid, ssid_password)
@@ -914,9 +905,9 @@ def network_hunt(conf):
             router_options.append(r)
     if len(router_options) > 1:
         err = '\n'.join("Possible router: {} (ip {})".format(r.nickname, r.ip)) + '\n'
-        raise CGError(err + "Multiple possible routers found")  # FIXME: allow user to choose one
+        raise CGError(err + "Multiple possible routers found")
     if len(router_options) == 0:
-        raise CGError("No possible routers found")  # FIXME: help user get router connected
+        raise CGError("No possible routers found")
     router = router_options[0]
     print_msg(1, "Using router {} (ip {})".format(router.nickname, router.ip))
     return router
@@ -926,7 +917,6 @@ def do_configure():
     conf = Config.load()
     ssid, ssid_password = wifi_hunt(conf)
     router = network_hunt(conf)
-    # FIXME: verify internet connectivity (without the VPN) before continuing
     try:
         try:
             router.router_password
@@ -937,14 +927,8 @@ def do_configure():
             # router.ssid = router.exec('uci get wireless.@wifi-iface[0].ssid').rstrip()
             router.generate_passwords()
             router.generate_ssh_keys()
-            # FIXME: guide user on setting up a new PIA account (i.e. sign up
-            # at https://www.privateinternetaccess.com/, check email, etc.)
             router.vpn_username = input("Enter the PIA username to use on this router: ")
             router.vpn_password = input("Enter the PIA password to use on this router: ")
-            # FIXME: verify vpn_username and vpn_password because if they're not working,
-            # troubleshooting later will be difficult
-            # FIXME: guide user on choosing region; see:
-            # https://www.privateinternetaccess.com/pages/network/
             router.vpn_server_host = input("Enter the PIA region to use on this router: ")
             conf.routers.append(router)
             conf.save()
@@ -986,8 +970,6 @@ def do_configure():
             #iptables-save
             --- group safecheck1 ---
             # Verify router WiFi password has not yet been changed.
-            # FIXME: allow user to continue anyhow
-            # FIXME: use password from dict factory_ssids
             cg:assert `uci get wireless.@wifi-iface[0].key` == 'goodlife'
             --- group pwlangtz1 passwords, timezone ---
             uci set glconfig.general.password={http_password_sha256}
@@ -1008,8 +990,6 @@ def do_configure():
             chmod 770 /etc/openvpn/restart-if-needed.sh
             --- group dns1 ---
             # Set specific DNS servers so that the ISP's servers are not used.
-            # FIXME: uci commands using '[-1]' cannot be harmlessly re-run; maybe use a
-            # 'from' and 'to' version for each group
             uci add_list dhcp.@dnsmasq[-1].server='9.9.9.9'
             uci add_list dhcp.@dnsmasq[-1].server='149.112.112.112'
             uci add_list dhcp.@dnsmasq[-1].noresolv=1
@@ -1022,8 +1002,6 @@ def do_configure():
             # Note IPv6 should be disabled until we can properly address the security
             # implications; see:
             # https://www.privateinternetaccess.com/helpdesk/kb/articles/why-do-you-block-ipv6
-            # FIXME: needs blank line and comment before these lines, but then
-            # it wouldn't be re-doable
             grep -v -e ^net.ipv6.conf.all.disable_ipv6 -e ^net.ipv6.conf.default.disable_ipv6 -e ^net.ipv6.conf.lo.disable_ipv6 /etc/sysctl.conf >/tmp/sysctl
             echo 'net.ipv6.conf.all.disable_ipv6=1' >>/tmp/sysctl
             echo 'net.ipv6.conf.default.disable_ipv6=1' >>/tmp/sysctl
@@ -1031,7 +1009,6 @@ def do_configure():
             cp /tmp/sysctl /etc/sysctl.conf
             --- group dhcpsix1 ---
             # Prevent 'dhcp6 solicit' to the ISP
-            # FIXME: uci commands using '[-1]' cannot be harmlessly re-run
             uci add firewall rule
             uci set firewall.@rule[-1].name='Block all IPv6 to ISP'
             uci set firewall.@rule[-1].dest=wan
@@ -1064,16 +1041,14 @@ def do_configure():
             uci commit
             --- group opkga1 ---
             # Install OpenVPN and iptables tools (OpenVPN is pre-installed on GL-iNet routers).
-            # FIXME: 'opkg update' may take a long time so provide status to user
-            opkg update  # FIXME: if opkg fails, reboot router and retry
+            opkg update
             if   [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn; fi  # OpenWrt older than Chaos Calmer
             if ! [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn-openssl; fi  # Chaos Calmer and later
             --- group opkgb1 ---
-            if ! ( [ -f /tmp/opkg-lists/packages ] || [ -f /tmp/opkg-lists/*_packages ] ) ; then opkg update; fi  # FIXME: if opkg fails, reboot router and retry
+            if ! ( [ -f /tmp/opkg-lists/packages ] || [ -f /tmp/opkg-lists/*_packages ] ) ; then opkg update; fi
             opkg install kmod-ipt-filter iptables-mod-filter  # for iptables --match string
             --- group noleak1 ---
             # Prevent leaking data to the ISP.
-            # FIXME: uci commands using '[-1]' cannot be harmlessly re-run
             uci add firewall rule
             uci set firewall.@rule[-1].name='Block all DNS to ISP except *.privateinternetaccess.com'
             uci set firewall.@rule[-1].dest=wan
@@ -1129,7 +1104,7 @@ def do_configure():
                 print_msg(1, "Router is already up-to-date")
         except RemoteExecutionError:
             raise CGError("Unable to fully configure router {}. ".format(router.nickname)
-                    + "Reboot reboot router and try again.")  # FIXME: automate this
+                    + "Reboot reboot router and try again.")
         # All groups successfully updated.
     except:
         router.close()  # docs emphasize importance of closing Paramiko client
@@ -1180,9 +1155,3 @@ if __name__ == '__main__':
         main()
     except CGError as err:
         print_msg(0, err)
-
-
-# FIXME: implement unit tests
-# FIXME: implement router testing (#7 in README.md)
-# Test that your IP is from PIA via:
-# wget -q -O- 'https://www.privateinternetaccess.com/' |grep 'You are protected by PIA'
