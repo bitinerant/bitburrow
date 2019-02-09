@@ -4,33 +4,32 @@
 Note double quotes are used for text that should be localized (l10n); single quotes elsewhere.
 """
 
-# Standard Python 3 library
 import argparse
-import os
-import io
-from sys import stderr
-import re
 import base64
-import ipaddress
-import telnetlib
-from socket import gaierror
 import crypt
+from hashlib import sha256
+import io
+import ipaddress
+import os
+import re
+import secrets  # needs sudo apt install python3-secretstorage but default on Ubuntu 18.04 Desktop
+from socket import gaierror
+from sys import stderr
+import telnetlib
+import textwrap
+import time
+import uuid
+
+from cryptography.hazmat.backends import default_backend as crypto_default_backend
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.backends import default_backend as crypto_default_backend
-from hashlib import sha256
-import yaml
-import time
-import textwrap
 from dbus import exceptions
-import uuid
-# From PyPI
-import secrets  # needs sudo apt install python3-secretstorage but default on Ubuntu 18.04 Desktop
+import getmac
 import netifaces  # needs sudo apt install python3-netifaces but default on Ubuntu 18.04 Desktop
 import NetworkManager  # needs sudo apt install python3-networkmanager
-import paramiko  # needs pip3 install paramiko
-import getmac  # needs pip3 install getmac
-from scp import SCPClient  # needs pip3 install scp
+import paramiko
+from scp import SCPClient
+import yaml
 
 
 class CGError(Exception):
@@ -73,7 +72,7 @@ args = parser.parse_args()
 
 
 if args.debug:
-    import code
+    pass
     # Insert this to debug new code:
     # if args.debug:
     #     code.interact(local=locals())
