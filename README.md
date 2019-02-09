@@ -122,7 +122,7 @@ For these instructions, you will need a computer with Ubuntu Linux installed.
 	  ``ps |grep '[o]penvpn'; sleep 1; killall openvpn; sleep 1; ps |grep '[o]penvpn'; sleep 10; ps |grep '[o]penvpn'``
 	* After running the above command, watch the tcpdump window. After a couple of seconds, you should see some 
 	  queries for privateinternetaccess.com but **not any other queries**. If you don't see any tcpdump activity, 
-	  wait a few mintues for the DNS cache to time out. The above command should list exactly 2 lines--the old and the
+	  wait a few minutes for the DNS cache to time out. The above command should list exactly 2 lines--the old and the
 	  new OpenVPN instances.
 
 #### notes and links
