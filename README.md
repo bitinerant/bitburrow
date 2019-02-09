@@ -156,8 +156,6 @@ environment and run it.
 (venv) $ tox
 ```
 
-> Note: The project is not yet ready to actually be formatted.
-
 To format the code automatically using `black`:
 
 ```bash
