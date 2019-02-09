@@ -79,6 +79,9 @@ For these instructions, you will need a computer with Ubuntu Linux installed.
 * Create a Python [virtual environment](https://docs.python.org/3/library/venv.html) and also use system packages
   so that `python-dbus` can be properly linked in.
 
+    > Note that once `NetworkManager` / `DBus` is removed, the `--system-site-packages` argument will no longer
+    be required.
+
     ```bash
     $ python3 -m venv --system-site-packages venv
     ```
