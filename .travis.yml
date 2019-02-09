@@ -5,7 +5,14 @@ dist: xenial
 matrix:
     include:
         - python: "3.6"
+          env: TOXENV=py36
         - python: "3.7"
+          env: TOXENV=py37
+        - python: "3.7"
+          env: TOXENV=pep8
+    allow_failures:
+      # TODO: Remove this once main.py lines are properly wrapped.
+      - env: TOXENV=pep8
 
 install:
   pip install tox
