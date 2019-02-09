@@ -500,6 +500,19 @@ def new_nickname(mac=None):
         return 'new' + manuf + ' device'
 
 
+class SSHClient_noauth(paramiko.SSHClient):
+    # The work-around below is because paramiko does not support the "auth_none"
+    # option (SSH requiring no authentication at all). For more details, see
+    # https://stackoverflow.com/a/32986895/10590519
+    # Instead of this work-around, one could modify "paramiko/client.py" and
+    # change the last line of "_auth()"
+    # from: raise SSHException("No authentication methods available")
+    # to:   self._transport.auth_none(username)
+
+    def _auth(self, username, *args):
+        self._transport.auth_none(username)
+
+
 class Router(yaml.YAMLObject):
     yaml_loader = yaml.SafeLoader
     yaml_tag = '!Router'  # https://stackoverflow.com/a/2890073/10590519
@@ -549,7 +562,7 @@ class Router(yaml.YAMLObject):
         phase2 = [
             'cat /etc/openwrt_release\n',  # info for the logs
             'uname -a\n',
-            'lsb_release -d\n',
+            'lsb_release -d || true\n',
             'echo 12③4✔\n',
             '''echo '{}' >/tmp/shadow\n'''.format(root_shadow_line),
             '''grep -v '^root:' /etc/shadow >>/tmp/shadow\n''',
@@ -559,6 +572,41 @@ class Router(yaml.YAMLObject):
         ]
         # After above 'mv' command, this should connect you to router:
         # ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@192.168.8.1
+        #
+        # After a hard reset, some routers and firmware version listen for a telnet connection,
+        # while others listen for an ssh connection with no authentication for 'root'. Try ssh
+        # with no authentication first.
+        tmp_client = SSHClient_noauth()
+        tmp_client.set_missing_host_key_policy(paramiko.RejectPolicy)  # ensure correct host key
+        hostkey = self.ssh_hostkey.split(' ')
+        tmp_client.get_host_keys().add(
+            self.ip,
+            hostkey[0],
+            paramiko.RSAKey(data=base64.b64decode(hostkey[1]))
+        )
+        try:
+            tmp_client.connect(
+                hostname=self.ip,
+                username='root',
+                pkey=None,
+                password=None,
+                allow_agent=False,
+                look_for_keys=False,
+            )
+        except paramiko.ssh_exception.NoValidConnectionsError:
+            print_msg(1, "Initial connection via ssh failed - trying telnet.")
+        else:
+            for to_send in phase2:
+                print_msg(1, 'Router cmd:    ' + to_send.rstrip())
+                __, stdout, stderr = tmp_client.exec_command(to_send.rstrip())
+                exitc = stdout.channel.recv_exit_status()
+                print_msg(1, 'Router stdout: '.join(['']+list(stdout)), end='')
+                print_msg(1, 'Router stderr: '.join(['']+list(stderr)), end='')
+                if exitc != 0:
+                    tmp_client.close()
+                    raise RemoteExecutionError("Error running '{}' on router".format(to_send))
+            tmp_client.close()
+            return
         phase1_prompts = [re.compile(p.encode()) for p in phase1]
         esc_seq_re = re.compile(r'\x1b\[[0-9;]+m')
         print_msg(1, "<telnet_log>")
@@ -643,6 +691,7 @@ class Router(yaml.YAMLObject):
                 connect_method = 'password'
             except paramiko.ssh_exception.AuthenticationException:
                 self.client = None
+                raise CGError("Unable to connect to {} at {}.".format(self.nickname, self.ip))
         self.last_connect = (time.strftime("%Y-%m-%d_%H:%M:%S", time.gmtime()) 
                 + " {}".format(connect_method))
         print_msg(1, "Connected to {} via {}".format(self.nickname, connect_method))
@@ -932,15 +981,16 @@ def do_configure():
             router.vpn_server_host = input("Enter the PIA region to use on this router: ")
             conf.routers.append(router)
             conf.save()
-            router.set_password_on_router()
+            try:
+                router.set_password_on_router()
+            except paramiko.ssh_exception.AuthenticationException:
+                print_msg(1, "Connecting without ssh authentication failed.")
         router.connect_ssh()
         if router.client == None:  # couldn't authenticate - maybe router was reset
             print_msg(1, "Unable to connect to {} at {}. Trying to reset password."
                     .format(router.nickname, router.ip))
             router.set_password_on_router()
             router.connect_ssh()
-        if router.client == None:  # couldn't authenticate
-            raise CGError("Unable to connect to {} at {}.".format(router.nickname, router.ip))
         # Group titles must begin (rest of line is a comment): --- group {name}
         # Group names must be lowercase letters followed by a version number > 0.
         # In-line comments are allowed but sent to router. Newline within quotes
