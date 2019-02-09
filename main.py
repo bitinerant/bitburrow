@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-# Note double quotes are used for text that should be localized (l10n); single quotes elsewhere.
+"""
+Note double quotes are used for text that should be localized (l10n); single quotes elsewhere.
+"""
 
 # Standard Python 3 library
 import argparse
