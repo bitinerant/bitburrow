@@ -768,7 +768,8 @@ class Router(yaml.YAMLObject):
                     if q == '"' or q == "'":
                         tokens.append(w[1:-1])
                     elif q == '`':  # use backticks as in bash shell
-                        tokens.append(self.exec(w[1:-1]).rstrip())  # output when executed on router
+                        # output when executed on router
+                        tokens.append(self.exec(w[1:-1]).rstrip())
                     else:
                         tokens.append(w)
                 if len(tokens) != 4 or (tokens[2] != '==' and tokens[2] != '!='):
@@ -1177,7 +1178,7 @@ def do_shell():
     try:
         router.connect_ssh()
         if args.verbose > 1:
-            args.verbose = 1 # reduce verbosity for shell processing
+            args.verbose = 1  # reduce verbosity for shell processing
         cmd = ''
         while cmd != 'exit':
             try:
