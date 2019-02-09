@@ -1,4 +1,7 @@
 # Clear Gopher
+
+[![Travis Build Status][travis-build-status-svg]][travis-build-status] 
+
 A safe internet tunnel for the whole home that anyone can set up.
 
 The goal of the Clear Gopher project is to make it really easy for non-technical people to set up a secure VPN for their whole home. We hope to eventually automate most of these steps.
@@ -115,3 +118,6 @@ For these instructions, you will need a computer with Ubuntu Linux installed.
 * [Setting an OpenWrt Based Router as OpenVPN Client](https://github.com/StreisandEffect/streisand/wiki/Setting-an-OpenWrt-Based-Router-as-OpenVPN-Client)
 * It is probably possible to [upgrade the firmware via CLI](https://forum.lede-project.org/t/a-rough-writeup-for-the-commandline-firmware-upgrade-wikipage/464).
 
+<!-- Badges -->
+[travis-build-status]: https://travis-ci.org/bitinerant/cleargopher
+[travis-build-status-svg]: https://travis-ci.org/bitinerant/cleargopher.svg?branch=master

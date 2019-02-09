@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-# Note double quotes are used for text that should be localized (l10n); single quotes elsewhere.
+"""
+Note double quotes are used for text that should be localized (l10n); single quotes elsewhere.
+"""
 
 # Standard Python 3 library
 import argparse
@@ -17,7 +19,7 @@ from cryptography.hazmat.primitives import serialization as crypto_serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend as crypto_default_backend
 from hashlib import sha256
-import yaml  # FIXME: consider ruamel.yaml: https://stackoverflow.com/a/36760452/10590519
+import yaml
 import time
 import textwrap
 from dbus import exceptions
@@ -62,6 +64,11 @@ parser.add_argument('-d','--debug', action='store_true',
 # Mandatory arguments
 parser.add_argument('command', choices=('configure', 'update', 'shell'), metavar='command',
         help="task to perform: configure, update, or shell")
+        # To get a real shell (in step 3 use 'router_password' from ~/.cleargopher/cleapher.conf):
+        # ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa  # if prompted, don't overwrite existing key
+        # ssh-keyscan 192.168.8.1 2>/dev/null |perl -pe 's|^[^ ]*|*|' >>~/.ssh/known_hosts
+        # cat ~/.ssh/id_rsa.pub |ssh root@192.168.8.1 'cat - >>/etc/dropbear/authorized_keys'
+        # ssh root@192.168.8.1  # no password needed from now on
 args = parser.parse_args()
 
 
@@ -93,8 +100,7 @@ def wifi_available_ssids():
     to have multiple MACs with the same SSID"""
     # Based on: https://github.com/seveas/python-networkmanager/blob/master/examples/ssids.py
     macs_found = {}
-    os.system('nmcli dev wifi rescan 2>/dev/null')  # FIXME: use NetworkManager module instead
-    # FIXME: does not consistently find the full list of nearby networks
+    os.system('nmcli dev wifi rescan 2>/dev/null')
     time.sleep(0.4)
     for dev in NetworkManager.NetworkManager.GetDevices():
         if dev.DeviceType != NetworkManager.NM_DEVICE_TYPE_WIFI:
@@ -141,7 +147,7 @@ def wifi_connect(target_ssid, password):
                 conn_to_activate = c
                 break
         if conn_to_activate != None:  # found - exit 'twice' loop
-            break  # don't use supplied password if connection already exists
+            break
         print_msg(2, "Adding new NetworkManager connection {}".format(target_ssid))
         new_connection = {  # add a new connection
             '802-11-wireless': {
@@ -166,7 +172,7 @@ def wifi_connect(target_ssid, password):
         if dev.DeviceType == NetworkManager.NM_DEVICE_TYPE_WIFI:
             print_msg(1,"Connecting to WiFi network {}".format(target_ssid))
             nm_nm.ActivateConnection(conn_to_activate, dev, "/")
-            time.sleep(3)  # FIXME: rather than sleep(), wait until network connects
+            time.sleep(3)
             return
     raise CGError("Cannot connect to Wifi network {} - no suitable devices are available"
                 .format(target_ssid))
@@ -320,9 +326,6 @@ class PrivateInternetAccess(VpnProvider):
                 dev tun
                 proto udp
                 # mssfix is needed to solve MTU issues (VPN stall) on some networks
-                # FIXME: for better throughput on correct links, don't use
-                # 'mssfix' unless needed; see:
-                # https://www.privateinternetaccess.com/archive/forum/discussion/4603
                 mssfix 1400
                 remote {server} 1198
                 resolv-retry infinite
@@ -460,7 +463,7 @@ def possible_router_ips():
 
 def ssh_keyscan(ip, port=22):
     try:
-        transport = paramiko.Transport((ip, port))  # FIXME: may block for a very long time
+        transport = paramiko.Transport((ip, port))
         transport.connect()
         key = transport.get_remote_server_key()
         transport.close()
@@ -498,6 +501,19 @@ def new_nickname(mac=None):
             elif not r_comment.match(line):
                 raise CGError("Invalid OUI line: {}".format(line))
         return 'new' + manuf + ' device'
+
+
+class SSHClient_noauth(paramiko.SSHClient):
+    # The work-around below is because paramiko does not support the "auth_none"
+    # option (SSH requiring no authentication at all). For more details, see
+    # https://stackoverflow.com/a/32986895/10590519
+    # Instead of this work-around, one could modify "paramiko/client.py" and
+    # change the last line of "_auth()"
+    # from: raise SSHException("No authentication methods available")
+    # to:   self._transport.auth_none(username)
+
+    def _auth(self, username, *args):
+        self._transport.auth_none(username)
 
 
 class Router(yaml.YAMLObject):
@@ -549,7 +565,7 @@ class Router(yaml.YAMLObject):
         phase2 = [
             'cat /etc/openwrt_release\n',  # info for the logs
             'uname -a\n',
-            'lsb_release -d\n',
+            'lsb_release -d || true\n',
             'echo 12③4✔\n',
             '''echo '{}' >/tmp/shadow\n'''.format(root_shadow_line),
             '''grep -v '^root:' /etc/shadow >>/tmp/shadow\n''',
@@ -559,6 +575,41 @@ class Router(yaml.YAMLObject):
         ]
         # After above 'mv' command, this should connect you to router:
         # ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@192.168.8.1
+        #
+        # After a hard reset, some routers and firmware version listen for a telnet connection,
+        # while others listen for an ssh connection with no authentication for 'root'. Try ssh
+        # with no authentication first.
+        tmp_client = SSHClient_noauth()
+        tmp_client.set_missing_host_key_policy(paramiko.RejectPolicy)  # ensure correct host key
+        hostkey = self.ssh_hostkey.split(' ')
+        tmp_client.get_host_keys().add(
+            self.ip,
+            hostkey[0],
+            paramiko.RSAKey(data=base64.b64decode(hostkey[1]))
+        )
+        try:
+            tmp_client.connect(
+                hostname=self.ip,
+                username='root',
+                pkey=None,
+                password=None,
+                allow_agent=False,
+                look_for_keys=False,
+            )
+        except paramiko.ssh_exception.NoValidConnectionsError:
+            print_msg(1, "Initial connection via ssh failed - trying telnet.")
+        else:
+            for to_send in phase2:
+                print_msg(1, 'Router cmd:    ' + to_send.rstrip())
+                __, stdout, stderr = tmp_client.exec_command(to_send.rstrip())
+                exitc = stdout.channel.recv_exit_status()
+                print_msg(1, 'Router stdout: '.join(['']+list(stdout)), end='')
+                print_msg(1, 'Router stderr: '.join(['']+list(stderr)), end='')
+                if exitc != 0:
+                    tmp_client.close()
+                    raise RemoteExecutionError("Error running '{}' on router".format(to_send))
+            tmp_client.close()
+            return
         phase1_prompts = [re.compile(p.encode()) for p in phase1]
         esc_seq_re = re.compile(r'\x1b\[[0-9;]+m')
         print_msg(1, "<telnet_log>")
@@ -601,7 +652,10 @@ class Router(yaml.YAMLObject):
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.RejectPolicy)  # ensure correct host key
         # Host key is normally a line in ~/.ssh/known_hosts
-        hostkey = self.ssh_hostkey.split(' ')
+        try:
+            hostkey = self.ssh_hostkey.split(' ')
+        except AttributeError:
+            raise CGError("Router has not yet been configured for ssh.")
         self.client.get_host_keys().add(
             self.ip,
             hostkey[0],
@@ -640,6 +694,7 @@ class Router(yaml.YAMLObject):
                 connect_method = 'password'
             except paramiko.ssh_exception.AuthenticationException:
                 self.client = None
+                raise CGError("Unable to connect to {} at {}.".format(self.nickname, self.ip))
         self.last_connect = (time.strftime("%Y-%m-%d_%H:%M:%S", time.gmtime()) 
                 + " {}".format(connect_method))
         print_msg(1, "Connected to {} via {}".format(self.nickname, connect_method))
@@ -693,7 +748,7 @@ class Router(yaml.YAMLObject):
             self.put(PrivateInternetAccess.file(filename=f, data=vpn_conf), d + '/' + f)
 
     def update_group(self, name, from_ver, to_ver, code):
-        if from_ver >= to_ver:  # FIXME: update needed if any {...} values changed
+        if from_ver >= to_ver:
             return
         print_msg(1, "Updating from {}{} to {}{}".format(name, from_ver, name, to_ver))
         for line in code:
@@ -847,17 +902,15 @@ def wifi_hunt(conf):
         for r in conf.routers:  # test SSIDs from conf file _first_
             if s == r.ssid:
                 known_ssids[s] = r.wifi_password
-                # FIXME: handle duplicate SSIDs in conf file with different passwords
         for e in factory_ssids:  # test regex list _second_
             if s not in known_ssids and re.search(e, s):
                 known_ssids[s] = factory_ssids[e]
-                # FIXME: try factory password even if already found - in case router was reset
     if len(known_ssids) == 0:
         print_msg(1, "Visible networks: {}".format(', '.join(list(set(nets.values())))))
         raise CGError("Unable to find WiFi network for a supported router")
     elif len(known_ssids) > 1:
         err = '\n'.join("Possible router: {}".format(r) for r in known_ssids) + '\n'
-        raise CGError(err + "Multiple possible networks found")  # FIXME: allow user to choose one
+        raise CGError(err + "Multiple possible networks found")
     ssid = list(known_ssids.keys())[0]
     ssid_password = known_ssids[ssid]
     wifi_connect(ssid, ssid_password)
@@ -904,9 +957,9 @@ def network_hunt(conf):
             router_options.append(r)
     if len(router_options) > 1:
         err = '\n'.join("Possible router: {} (ip {})".format(r.nickname, r.ip)) + '\n'
-        raise CGError(err + "Multiple possible routers found")  # FIXME: allow user to choose one
+        raise CGError(err + "Multiple possible routers found")
     if len(router_options) == 0:
-        raise CGError("No possible routers found")  # FIXME: help user get router connected
+        raise CGError("No possible routers found")
     router = router_options[0]
     print_msg(1, "Using router {} (ip {})".format(router.nickname, router.ip))
     return router
@@ -926,41 +979,36 @@ def do_configure():
             # router.ssid = router.exec('uci get wireless.@wifi-iface[0].ssid').rstrip()
             router.generate_passwords()
             router.generate_ssh_keys()
-            # FIXME: guide user on setting up a new PIA account (i.e. sign up
-            # at https://www.privateinternetaccess.com/, check email, etc.)
             router.vpn_username = input("Enter the PIA username to use on this router: ")
             router.vpn_password = input("Enter the PIA password to use on this router: ")
-            # FIXME: verify vpn_username and vpn_password because if they're not working,
-            # troubleshooting later will be difficult
-            # FIXME: guide user on choosing region; see:
-            # https://www.privateinternetaccess.com/pages/network/
             router.vpn_server_host = input("Enter the PIA region to use on this router: ")
             conf.routers.append(router)
             conf.save()
-            router.set_password_on_router()
+            try:
+                router.set_password_on_router()
+            except paramiko.ssh_exception.AuthenticationException:
+                print_msg(1, "Connecting without ssh authentication failed.")
         router.connect_ssh()
         if router.client == None:  # couldn't authenticate - maybe router was reset
             print_msg(1, "Unable to connect to {} at {}. Trying to reset password."
                     .format(router.nickname, router.ip))
             router.set_password_on_router()
             router.connect_ssh()
-        if router.client == None:  # couldn't authenticate
-            raise CGError("Unable to connect to {} at {}.".format(router.nickname, router.ip))
         # Group titles must begin (rest of line is a comment): --- group {name}
         # Group names must be lowercase letters followed by a version number > 0.
         # In-line comments are allowed but sent to router. Newline within quotes
         # must be written: \\n
         groups_gl_inet = '''
             --- group sysinfoa1 ---
-            # FIXME: don't abort if commands in this group fail
-            uname -a
-            date --utc '+%Y-%m-%d_%H:%M:%S'
-            cat /etc/banner |grep -v -e '^ ---------------' -e '^  \* ' -e '^ |' -e '^  __'
-            cat /etc/glversion
-            cat /etc/openwrt_release
-            cat /proc/cpuinfo
-            opkg print-architecture
-            traceroute -n -m 6 141.1.1.1
+            uname -a || true
+            date --utc '+%Y-%m-%d_%H:%M:%S' || true
+            cat /etc/banner |grep -v -e '^ ---------------' -e '^  \* ' -e '^ |' -e '^  __' || true
+            cat /etc/glversion || true
+            cat /etc/openwrt_release || true
+            cat /proc/cpuinfo || true
+            opkg print-architecture || true
+            /usr/sbin/openvpn --version || true
+            traceroute -n -m 6 141.1.1.1 || true
             --- group sysinfob1 ---
             #uptime
             #ip address show
@@ -975,8 +1023,6 @@ def do_configure():
             #iptables-save
             --- group safecheck1 ---
             # Verify router WiFi password has not yet been changed.
-            # FIXME: allow user to continue anyhow
-            # FIXME: use password from dict factory_ssids
             cg:assert `uci get wireless.@wifi-iface[0].key` == 'goodlife'
             --- group pwlangtz1 passwords, timezone ---
             uci set glconfig.general.password={http_password_sha256}
@@ -997,8 +1043,6 @@ def do_configure():
             chmod 770 /etc/openvpn/restart-if-needed.sh
             --- group dns1 ---
             # Set specific DNS servers so that the ISP's servers are not used.
-            # FIXME: uci commands using '[-1]' cannot be harmlessly re-run; maybe use a
-            # 'from' and 'to' version for each group
             uci add_list dhcp.@dnsmasq[-1].server='9.9.9.9'
             uci add_list dhcp.@dnsmasq[-1].server='149.112.112.112'
             uci add_list dhcp.@dnsmasq[-1].noresolv=1
@@ -1011,8 +1055,6 @@ def do_configure():
             # Note IPv6 should be disabled until we can properly address the security
             # implications; see:
             # https://www.privateinternetaccess.com/helpdesk/kb/articles/why-do-you-block-ipv6
-            # FIXME: needs blank line and comment before these lines, but then
-            # it wouldn't be re-doable
             grep -v -e ^net.ipv6.conf.all.disable_ipv6 -e ^net.ipv6.conf.default.disable_ipv6 -e ^net.ipv6.conf.lo.disable_ipv6 /etc/sysctl.conf >/tmp/sysctl
             echo 'net.ipv6.conf.all.disable_ipv6=1' >>/tmp/sysctl
             echo 'net.ipv6.conf.default.disable_ipv6=1' >>/tmp/sysctl
@@ -1020,7 +1062,6 @@ def do_configure():
             cp /tmp/sysctl /etc/sysctl.conf
             --- group dhcpsix1 ---
             # Prevent 'dhcp6 solicit' to the ISP
-            # FIXME: uci commands using '[-1]' cannot be harmlessly re-run
             uci add firewall rule
             uci set firewall.@rule[-1].name='Block all IPv6 to ISP'
             uci set firewall.@rule[-1].dest=wan
@@ -1053,16 +1094,14 @@ def do_configure():
             uci commit
             --- group opkga1 ---
             # Install OpenVPN and iptables tools (OpenVPN is pre-installed on GL-iNet routers).
-            # FIXME: 'opkg update' may take a long time so provide status to user
-            opkg update  # FIXME: if opkg fails, reboot router and retry
+            opkg update
             if   [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn; fi  # OpenWrt older than Chaos Calmer
             if ! [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn-openssl; fi  # Chaos Calmer and later
             --- group opkgb1 ---
-            if ! ( [ -f /tmp/opkg-lists/packages ] || [ -f /tmp/opkg-lists/*_packages ] ) ; then opkg update; fi  # FIXME: if opkg fails, reboot router and retry
+            if ! ( [ -f /tmp/opkg-lists/packages ] || [ -f /tmp/opkg-lists/*_packages ] ) ; then opkg update; fi
             opkg install kmod-ipt-filter iptables-mod-filter  # for iptables --match string
             --- group noleak1 ---
             # Prevent leaking data to the ISP.
-            # FIXME: uci commands using '[-1]' cannot be harmlessly re-run
             uci add firewall rule
             uci set firewall.@rule[-1].name='Block all DNS to ISP except *.privateinternetaccess.com'
             uci set firewall.@rule[-1].dest=wan
@@ -1097,11 +1136,17 @@ def do_configure():
             uci set firewall.@rule[-1].extra='--match multiport ! --dports 1194,1198'
             uci set firewall.@rule[-1].target=REJECT
             uci commit firewall
+            --- group twothreefix1 ---
+            # Disable options not supported in OpenVPN 2.3
+            if /usr/sbin/openvpn --version |grep '^OpenVPN 2\.3\.' ; then sed -i -e 's/^pull-filter /#pull-filter /' /etc/openvpn/client.conf; fi
             --- group starta1 ---
             # It seems that `/etc/init.d/openvpn enable` isn't reliable and
             # `/etc/init.d/openvpn start` (run at boot) starts a new process every 5 seconds,
             # so we use cron to check every 60 seconds if OpenVPN is working.
             (crontab -l 2>/dev/null; echo '* * * * * /etc/openvpn/restart-if-needed.sh') |crontab -
+            --- group teststart1 ---
+            # Test OpenVPN start-up, e.g. errors in .conf file. Displayed messages are golden.
+            /usr/sbin/openvpn --cd /etc/openvpn --config /etc/openvpn/client.conf
             --- group complete1 ---  # end marker
         '''
         try:
@@ -1112,7 +1157,7 @@ def do_configure():
                 print_msg(1, "Router is already up-to-date")
         except RemoteExecutionError:
             raise CGError("Unable to fully configure router {}. ".format(router.nickname)
-                    + "Reboot reboot router and try again.")  # FIXME: automate this
+                    + "Reboot reboot router and try again.")
         # All groups successfully updated.
     except:
         router.close()  # docs emphasize importance of closing Paramiko client
@@ -1163,9 +1208,3 @@ if __name__ == '__main__':
         main()
     except CGError as err:
         print_msg(0, err)
-
-
-# FIXME: implement unit tests
-# FIXME: implement router testing (#7 in README.md)
-# Test that your IP is from PIA via:
-# wget -q -O- 'https://www.privateinternetaccess.com/' |grep 'You are protected by PIA'

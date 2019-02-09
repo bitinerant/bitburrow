@@ -1,0 +1,12 @@
+__pycache__
+.tox
+*.egg-info
+.coverage
+htmlcov
+dist
+.idea
+venv
+Clear Gopher.code-workspace
+.vscode/launch.json
+.vscode/.ropeproject/config.py
+.vscode/.ropeproject/objectdb
