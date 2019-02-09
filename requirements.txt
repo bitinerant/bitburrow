@@ -1,0 +1,6 @@
+cryptography >= 2.5
+getmac >= 0.7.0
+netifaces >= 0.10.9
+paramiko >= 2.4.2
+PyYAML >= 3.13
+scp >= 0.13.0
