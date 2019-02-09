@@ -1,6 +1,7 @@
 # Clear Gopher
 
 [![Travis Build Status][travis-build-status-svg]][travis-build-status] 
+[![Code Style][black-code-style-svg]][black-code-style]
 
 A safe internet tunnel for the whole home that anyone can set up.
 
@@ -9,7 +10,9 @@ their whole home. We hope to eventually automate most of these steps.
 
 For these instructions, you will need a computer with Ubuntu Linux installed.
 
-#### 1. acquire the hardware
+## Install Instructions
+
+### 1. Acquire the hardware
 * **VPN router**:  GL.iNet GL-AR300M
 	* Similar models, such as the GL-AR300M-Lite, GL-AR300M16, and GL-AR300MD, *may* work but have not been tested.
 	* The model with external antennas (GL-AR300M-Ext) should work.
@@ -26,7 +29,7 @@ For these instructions, you will need a computer with Ubuntu Linux installed.
 	  [0.5-feet](https://amzn.com/B00ACR5LNC).
 
 
-#### 2. purchase VPN service
+### 2. Purchase VPN service
 * Go to [Private Internet Access](https://www.privateinternetaccess.com/) (PIA) and sign up for service.
 	* From the home page, click Get Started or Join Now.
 	* Choose a plan and payment method.
@@ -35,13 +38,13 @@ For these instructions, you will need a computer with Ubuntu Linux installed.
 * Check your email for the username and password assigned to you by PIA and store these.
 
 
-#### 3. choose a server location
+### 3. Choose a server location
 * Go to <https://www.privateinternetaccess.com/pages/network/> and find the best server in the country of the 
   user's choice.
 * Store the chosen location, e.g.:  ``us-east.privateinternetaccess.com``
 
 
-#### 4. plug the VPN router into your existing router
+### 4. Plug the VPN router into your existing router
 * If you have a VPN router with external antennas, screw on the 2 antennas.
 * Plug one end of the Ethernet cable into the port labeled 'WAN' on the VPN router.
 * Plug the other end of the Ethernet cable into one of the LAN ports on your existing router. If the ports are not 
@@ -52,14 +55,14 @@ For these instructions, you will need a computer with Ubuntu Linux installed.
 * Wait about 1 minute for the VPN router to boot (the red LED should be on or flashing) before trying the next step.
 
 
-#### 5. reset the router
+### 5. Reset the router
 * If the VPN router has been used or configured before, reset it to its factory settings:
 	* Power it on and wait 1 minute for it to boot.
 	* Press and hold the reset button on the router for a full 10 seconds.
 	* Release the button and wait about 3 minutes.
 
 
-#### 6. configure the router
+### 6. Configure the router
 
 * Use an Ubuntu 18.04 host.
 
@@ -102,7 +105,7 @@ For these instructions, you will need a computer with Ubuntu Linux installed.
 
 * You will be prompted to enter the VPN username, password, and location from steps 2 and 3, above.
 
-#### 7. test
+### 7. Test
 * Wait for the router to reboot.
 * Reconnect the WiFi to the VPN router. The password should be saved in Network Manager. 
   (It is also in ``~/.cleargopher/cleapher.conf``.)
@@ -128,7 +131,7 @@ For these instructions, you will need a computer with Ubuntu Linux installed.
 	  wait a few minutes for the DNS cache to time out. The above command should list exactly 2 lines--the old and the
 	  new OpenVPN instances.
 
-#### notes and links
+## Notes and Links
 * If the VPN connects but only very simple web pages load ([example](http://www.neverhttps.com/)), 
   add this line to the OpenVPN .conf file and reboot again:  ``mssfix 1300``
 * To allow ssh via WAN port on OpenWrt:  <http://192.168.8.1/cgi-bin/luci/> > Network > Firewall > Traffic Rules >
@@ -142,6 +145,27 @@ For these instructions, you will need a computer with Ubuntu Linux installed.
 * [Setting an OpenWrt Based Router as OpenVPN Client](https://github.com/StreisandEffect/streisand/wiki/Setting-an-OpenWrt-Based-Router-as-OpenVPN-Client)
 * It is probably possible to [upgrade the firmware via CLI](https://forum.lede-project.org/t/a-rough-writeup-for-the-commandline-firmware-upgrade-wikipage/464).
 
+## Developer Guide
+
+
+To run unit tests and style checks on the project, install `tox` into your virtual
+environment and run it.
+
+```bash
+(venv) $ pip install tox
+(venv) $ tox
+```
+
+> Note: The project is not yet ready to actually be formatted.
+
+To format the code automatically using `black`:
+
+```bash
+(venv) $ tox -e fmt
+```
+
 <!-- Badges -->
 [travis-build-status]: https://travis-ci.org/bitinerant/cleargopher
 [travis-build-status-svg]: https://travis-ci.org/bitinerant/cleargopher.svg?branch=master
+[black-code-style]: https://github.com/ambv/black
+[black-code-style-svg]: https://img.shields.io/badge/code%20style-black-000000.svg
