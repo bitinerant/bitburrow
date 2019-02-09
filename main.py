@@ -108,8 +108,9 @@ def wifi_available_ssids():
         sig_levels = None
         # Wait until WiFi scan has completed, normally 0.8 - 3.8 seconds (including the 0.4 above).
         for delay in range(4,68):  # tenths of seconds; upper limit slightly arbitrary
+            # AccessPoint docs:
+            # https://developer.gnome.org/NetworkManager/stable/gdbus-org.freedesktop.NetworkManager.AccessPoint.html
             try:
-                # AccessPoint docs: https://developer.gnome.org/NetworkManager/stable/gdbus-org.freedesktop.NetworkManager.AccessPoint.html
                 aps = dev.GetAccessPoints()
                 new_sig_levels = [a.Strength for a in aps]  # list of WiFi signal levels for APs
             except (exceptions.DBusException, NetworkManager.ObjectVanished):
