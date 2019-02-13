@@ -11,10 +11,11 @@ from hashlib import sha256
 import io
 import ipaddress
 import os
+from pathlib import Path
 import re
 import secrets  # needs sudo apt install python3-secretstorage but default on Ubuntu 18.04 Desktop
 from socket import gaierror
-from sys import stderr
+import sys
 import telnetlib
 import textwrap
 import time
@@ -43,7 +44,7 @@ class RemoteExecutionError(Exception):
 def print_msg(level, msg, end='\n'):
     if args.verbose > level:
         if level == 0:
-            print('{}'.format(msg), file=stderr, end=end)
+            print('{}'.format(msg), file=sys.stderr, end=end)
         else:
             print('{}'.format(msg), end=end)
 
@@ -58,11 +59,13 @@ group_verbose.add_argument('-q','--quiet', action='store_const', const=0,
         help="silence error messages")
 parser.add_argument('-y','--yes', action='store_true', 
         help="unattended mode (answer 'yes' to all questions)")
-parser.add_argument('-d','--debug', action='store_true', 
-        help="debug mode")
 # Mandatory arguments
-parser.add_argument('command', choices=('configure', 'update', 'shell'), metavar='command',
-        help="task to perform: configure, update, or shell")
+parser.add_argument(
+    'command',
+    choices=('set-up', 'update', 'shell', 'internal-tests'),
+    metavar='command',
+    help="task to perform: set-up, update, or shell"
+)
         # To get a real shell (in step 3 use 'router_password' from ~/.cleargopher/cleapher.conf):
         # ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa  # if prompted, don't overwrite existing key
         # ssh-keyscan 192.168.8.1 2>/dev/null |perl -pe 's|^[^ ]*|*|' >>~/.ssh/known_hosts
@@ -71,17 +74,10 @@ parser.add_argument('command', choices=('configure', 'update', 'shell'), metavar
 args = parser.parse_args()
 
 
-if args.debug:
-    pass
-    # Insert this to debug new code:
-    # if args.debug:
-    #     code.interact(local=locals())
-
-
 def wifi_active_ssids():
     """Return a dict of MAC:SSID of currently-connected WiFi connections; note list may contain 
     MACs which were seen for the AP but not currently (or even ever) associated with"""
-    macs_found = {}
+    macs_found = dict()
     for conn in NetworkManager.NetworkManager.ActiveConnections:
         settings = conn.Connection.GetSettings()['connection']
         if settings['type'] != '802-11-wireless':
@@ -98,7 +94,7 @@ def wifi_available_ssids():
     dict of MAC:SSID of available WiFi networks; usually takes a few seconds; it is normal 
     to have multiple MACs with the same SSID"""
     # Based on: https://github.com/seveas/python-networkmanager/blob/master/examples/ssids.py
-    macs_found = {}
+    macs_found = dict()
     os.system('nmcli dev wifi rescan 2>/dev/null')
     time.sleep(0.4)
     for dev in NetworkManager.NetworkManager.GetDevices():
@@ -179,223 +175,6 @@ def wifi_connect(target_ssid, password):
                 .format(target_ssid))
  
 
-class VpnProvider():
-    pass
-
-
-class PrivateInternetAccess(VpnProvider):
-
-    def file(filename, data={}):
-        if filename == 'ca.rsa.2048.crt':
-            # From: https://www.privateinternetaccess.com/openvpn/openvpn.zip
-            fcontents = '''\
-                -----BEGIN CERTIFICATE-----
-                MIIFqzCCBJOgAwIBAgIJAKZ7D5Yv87qDMA0GCSqGSIb3DQEBDQUAMIHoMQswCQYD
-                VQQGEwJVUzELMAkGA1UECBMCQ0ExEzARBgNVBAcTCkxvc0FuZ2VsZXMxIDAeBgNV
-                BAoTF1ByaXZhdGUgSW50ZXJuZXQgQWNjZXNzMSAwHgYDVQQLExdQcml2YXRlIElu
-                dGVybmV0IEFjY2VzczEgMB4GA1UEAxMXUHJpdmF0ZSBJbnRlcm5ldCBBY2Nlc3Mx
-                IDAeBgNVBCkTF1ByaXZhdGUgSW50ZXJuZXQgQWNjZXNzMS8wLQYJKoZIhvcNAQkB
-                FiBzZWN1cmVAcHJpdmF0ZWludGVybmV0YWNjZXNzLmNvbTAeFw0xNDA0MTcxNzM1
-                MThaFw0zNDA0MTIxNzM1MThaMIHoMQswCQYDVQQGEwJVUzELMAkGA1UECBMCQ0Ex
-                EzARBgNVBAcTCkxvc0FuZ2VsZXMxIDAeBgNVBAoTF1ByaXZhdGUgSW50ZXJuZXQg
-                QWNjZXNzMSAwHgYDVQQLExdQcml2YXRlIEludGVybmV0IEFjY2VzczEgMB4GA1UE
-                AxMXUHJpdmF0ZSBJbnRlcm5ldCBBY2Nlc3MxIDAeBgNVBCkTF1ByaXZhdGUgSW50
-                ZXJuZXQgQWNjZXNzMS8wLQYJKoZIhvcNAQkBFiBzZWN1cmVAcHJpdmF0ZWludGVy
-                bmV0YWNjZXNzLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAPXD
-                L1L9tX6DGf36liA7UBTy5I869z0UVo3lImfOs/GSiFKPtInlesP65577nd7UNzzX
-                lH/P/CnFPdBWlLp5ze3HRBCc/Avgr5CdMRkEsySL5GHBZsx6w2cayQ2EcRhVTwWp
-                cdldeNO+pPr9rIgPrtXqT4SWViTQRBeGM8CDxAyTopTsobjSiYZCF9Ta1gunl0G/
-                8Vfp+SXfYCC+ZzWvP+L1pFhPRqzQQ8k+wMZIovObK1s+nlwPaLyayzw9a8sUnvWB
-                /5rGPdIYnQWPgoNlLN9HpSmsAcw2z8DXI9pIxbr74cb3/HSfuYGOLkRqrOk6h4RC
-                OfuWoTrZup1uEOn+fw8CAwEAAaOCAVQwggFQMB0GA1UdDgQWBBQv63nQ/pJAt5tL
-                y8VJcbHe22ZOsjCCAR8GA1UdIwSCARYwggESgBQv63nQ/pJAt5tLy8VJcbHe22ZO
-                sqGB7qSB6zCB6DELMAkGA1UEBhMCVVMxCzAJBgNVBAgTAkNBMRMwEQYDVQQHEwpM
-                b3NBbmdlbGVzMSAwHgYDVQQKExdQcml2YXRlIEludGVybmV0IEFjY2VzczEgMB4G
-                A1UECxMXUHJpdmF0ZSBJbnRlcm5ldCBBY2Nlc3MxIDAeBgNVBAMTF1ByaXZhdGUg
-                SW50ZXJuZXQgQWNjZXNzMSAwHgYDVQQpExdQcml2YXRlIEludGVybmV0IEFjY2Vz
-                czEvMC0GCSqGSIb3DQEJARYgc2VjdXJlQHByaXZhdGVpbnRlcm5ldGFjY2Vzcy5j
-                b22CCQCmew+WL/O6gzAMBgNVHRMEBTADAQH/MA0GCSqGSIb3DQEBDQUAA4IBAQAn
-                a5PgrtxfwTumD4+3/SYvwoD66cB8IcK//h1mCzAduU8KgUXocLx7QgJWo9lnZ8xU
-                ryXvWab2usg4fqk7FPi00bED4f4qVQFVfGfPZIH9QQ7/48bPM9RyfzImZWUCenK3
-                7pdw4Bvgoys2rHLHbGen7f28knT2j/cbMxd78tQc20TIObGjo8+ISTRclSTRBtyC
-                GohseKYpTS9himFERpUgNtefvYHbn70mIOzfOJFTVqfrptf9jXa9N8Mpy3ayfodz
-                1wiqdteqFXkTYoSDctgKMiZ6GdocK9nMroQipIQtpnwd4yBDWIyC6Bvlkrq5TQUt
-                YDQ8z9v+DMO6iwyIDRiU
-                -----END CERTIFICATE-----
-            '''
-        if filename == 'ca.rsa.4096.crt':
-            # From: https://www.privateinternetaccess.com/openvpn/ca.rsa.4096.crt
-            fcontents = '''\
-                -----BEGIN CERTIFICATE-----
-                MIIHqzCCBZOgAwIBAgIJAJ0u+vODZJntMA0GCSqGSIb3DQEBDQUAMIHoMQswCQYD
-                VQQGEwJVUzELMAkGA1UECBMCQ0ExEzARBgNVBAcTCkxvc0FuZ2VsZXMxIDAeBgNV
-                BAoTF1ByaXZhdGUgSW50ZXJuZXQgQWNjZXNzMSAwHgYDVQQLExdQcml2YXRlIElu
-                dGVybmV0IEFjY2VzczEgMB4GA1UEAxMXUHJpdmF0ZSBJbnRlcm5ldCBBY2Nlc3Mx
-                IDAeBgNVBCkTF1ByaXZhdGUgSW50ZXJuZXQgQWNjZXNzMS8wLQYJKoZIhvcNAQkB
-                FiBzZWN1cmVAcHJpdmF0ZWludGVybmV0YWNjZXNzLmNvbTAeFw0xNDA0MTcxNzQw
-                MzNaFw0zNDA0MTIxNzQwMzNaMIHoMQswCQYDVQQGEwJVUzELMAkGA1UECBMCQ0Ex
-                EzARBgNVBAcTCkxvc0FuZ2VsZXMxIDAeBgNVBAoTF1ByaXZhdGUgSW50ZXJuZXQg
-                QWNjZXNzMSAwHgYDVQQLExdQcml2YXRlIEludGVybmV0IEFjY2VzczEgMB4GA1UE
-                AxMXUHJpdmF0ZSBJbnRlcm5ldCBBY2Nlc3MxIDAeBgNVBCkTF1ByaXZhdGUgSW50
-                ZXJuZXQgQWNjZXNzMS8wLQYJKoZIhvcNAQkBFiBzZWN1cmVAcHJpdmF0ZWludGVy
-                bmV0YWNjZXNzLmNvbTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBALVk
-                hjumaqBbL8aSgj6xbX1QPTfTd1qHsAZd2B97m8Vw31c/2yQgZNf5qZY0+jOIHULN
-                De4R9TIvyBEbvnAg/OkPw8n/+ScgYOeH876VUXzjLDBnDb8DLr/+w9oVsuDeFJ9K
-                V2UFM1OYX0SnkHnrYAN2QLF98ESK4NCSU01h5zkcgmQ+qKSfA9Ny0/UpsKPBFqsQ
-                25NvjDWFhCpeqCHKUJ4Be27CDbSl7lAkBuHMPHJs8f8xPgAbHRXZOxVCpayZ2SND
-                fCwsnGWpWFoMGvdMbygngCn6jA/W1VSFOlRlfLuuGe7QFfDwA0jaLCxuWt/BgZyl
-                p7tAzYKR8lnWmtUCPm4+BtjyVDYtDCiGBD9Z4P13RFWvJHw5aapx/5W/CuvVyI7p
-                Kwvc2IT+KPxCUhH1XI8ca5RN3C9NoPJJf6qpg4g0rJH3aaWkoMRrYvQ+5PXXYUzj
-                tRHImghRGd/ydERYoAZXuGSbPkm9Y/p2X8unLcW+F0xpJD98+ZI+tzSsI99Zs5wi
-                jSUGYr9/j18KHFTMQ8n+1jauc5bCCegN27dPeKXNSZ5riXFL2XX6BkY68y58UaNz
-                meGMiUL9BOV1iV+PMb7B7PYs7oFLjAhh0EdyvfHkrh/ZV9BEhtFa7yXp8XR0J6vz
-                1YV9R6DYJmLjOEbhU8N0gc3tZm4Qz39lIIG6w3FDAgMBAAGjggFUMIIBUDAdBgNV
-                HQ4EFgQUrsRtyWJftjpdRM0+925Y6Cl08SUwggEfBgNVHSMEggEWMIIBEoAUrsRt
-                yWJftjpdRM0+925Y6Cl08SWhge6kgeswgegxCzAJBgNVBAYTAlVTMQswCQYDVQQI
-                EwJDQTETMBEGA1UEBxMKTG9zQW5nZWxlczEgMB4GA1UEChMXUHJpdmF0ZSBJbnRl
-                cm5ldCBBY2Nlc3MxIDAeBgNVBAsTF1ByaXZhdGUgSW50ZXJuZXQgQWNjZXNzMSAw
-                HgYDVQQDExdQcml2YXRlIEludGVybmV0IEFjY2VzczEgMB4GA1UEKRMXUHJpdmF0
-                ZSBJbnRlcm5ldCBBY2Nlc3MxLzAtBgkqhkiG9w0BCQEWIHNlY3VyZUBwcml2YXRl
-                aW50ZXJuZXRhY2Nlc3MuY29tggkAnS7684Nkme0wDAYDVR0TBAUwAwEB/zANBgkq
-                hkiG9w0BAQ0FAAOCAgEAJsfhsPk3r8kLXLxY+v+vHzbr4ufNtqnL9/1Uuf8NrsCt
-                pXAoyZ0YqfbkWx3NHTZ7OE9ZRhdMP/RqHQE1p4N4Sa1nZKhTKasV6KhHDqSCt/dv
-                Em89xWm2MVA7nyzQxVlHa9AkcBaemcXEiyT19XdpiXOP4Vhs+J1R5m8zQOxZlV1G
-                tF9vsXmJqWZpOVPmZ8f35BCsYPvv4yMewnrtAC8PFEK/bOPeYcKN50bol22QYaZu
-                LfpkHfNiFTnfMh8sl/ablPyNY7DUNiP5DRcMdIwmfGQxR5WEQoHL3yPJ42LkB5zs
-                6jIm26DGNXfwura/mi105+ENH1CaROtRYwkiHb08U6qLXXJz80mWJkT90nr8Asj3
-                5xN2cUppg74nG3YVav/38P48T56hG1NHbYF5uOCske19F6wi9maUoto/3vEr0rnX
-                JUp2KODmKdvBI7co245lHBABWikk8VfejQSlCtDBXn644ZMtAdoxKNfR2WTFVEwJ
-                iyd1Fzx0yujuiXDROLhISLQDRjVVAvawrAtLZWYK31bY7KlezPlQnl/D9Asxe85l
-                8jO5+0LdJ6VyOs/Hd4w52alDW/MFySDZSfQHMTIc30hLBJ8OnCEIvluVQQ2UQvoW
-                +no177N9L2Y+M9TcTA62ZyMXShHQGeh20rb4kK8f+iFX8NxtdHVSkxMEFSfDDyQ=
-                -----END CERTIFICATE-----
-            '''
-        if filename == 'crl.rsa.2048.pem':
-            # From: https://www.privateinternetaccess.com/openvpn/openvpn.zip
-            fcontents = '''\
-                -----BEGIN X509 CRL-----
-                MIICWDCCAUAwDQYJKoZIhvcNAQENBQAwgegxCzAJBgNVBAYTAlVTMQswCQYDVQQI
-                EwJDQTETMBEGA1UEBxMKTG9zQW5nZWxlczEgMB4GA1UEChMXUHJpdmF0ZSBJbnRl
-                cm5ldCBBY2Nlc3MxIDAeBgNVBAsTF1ByaXZhdGUgSW50ZXJuZXQgQWNjZXNzMSAw
-                HgYDVQQDExdQcml2YXRlIEludGVybmV0IEFjY2VzczEgMB4GA1UEKRMXUHJpdmF0
-                ZSBJbnRlcm5ldCBBY2Nlc3MxLzAtBgkqhkiG9w0BCQEWIHNlY3VyZUBwcml2YXRl
-                aW50ZXJuZXRhY2Nlc3MuY29tFw0xNjA3MDgxOTAwNDZaFw0zNjA3MDMxOTAwNDZa
-                MCYwEQIBARcMMTYwNzA4MTkwMDQ2MBECAQYXDDE2MDcwODE5MDA0NjANBgkqhkiG
-                9w0BAQ0FAAOCAQEAQZo9X97ci8EcPYu/uK2HB152OZbeZCINmYyluLDOdcSvg6B5
-                jI+ffKN3laDvczsG6CxmY3jNyc79XVpEYUnq4rT3FfveW1+Ralf+Vf38HdpwB8EW
-                B4hZlQ205+21CALLvZvR8HcPxC9KEnev1mU46wkTiov0EKc+EdRxkj5yMgv0V2Re
-                ze7AP+NQ9ykvDScH4eYCsmufNpIjBLhpLE2cuZZXBLcPhuRzVoU3l7A9lvzG9mjA
-                5YijHJGHNjlWFqyrn1CfYS6koa4TGEPngBoAziWRbDGdhEgJABHrpoaFYaL61zqy
-                MR6jC0K2ps9qyZAN74LEBedEfK7tBOzWMwr58A==
-                -----END X509 CRL-----
-            '''
-        if filename == 'ca.crt':
-            # From: https://www.privateinternetaccess.com/openvpn/ca.crt
-            fcontents = '''\
-                -----BEGIN CERTIFICATE-----
-                MIID2jCCA0OgAwIBAgIJAOtqMkR2JSXrMA0GCSqGSIb3DQEBBQUAMIGlMQswCQYD
-                VQQGEwJVUzELMAkGA1UECBMCT0gxETAPBgNVBAcTCENvbHVtYnVzMSAwHgYDVQQK
-                ExdQcml2YXRlIEludGVybmV0IEFjY2VzczEjMCEGA1UEAxMaUHJpdmF0ZSBJbnRl
-                cm5ldCBBY2Nlc3MgQ0ExLzAtBgkqhkiG9w0BCQEWIHNlY3VyZUBwcml2YXRlaW50
-                ZXJuZXRhY2Nlc3MuY29tMB4XDTEwMDgyMTE4MjU1NFoXDTIwMDgxODE4MjU1NFow
-                gaUxCzAJBgNVBAYTAlVTMQswCQYDVQQIEwJPSDERMA8GA1UEBxMIQ29sdW1idXMx
-                IDAeBgNVBAoTF1ByaXZhdGUgSW50ZXJuZXQgQWNjZXNzMSMwIQYDVQQDExpQcml2
-                YXRlIEludGVybmV0IEFjY2VzcyBDQTEvMC0GCSqGSIb3DQEJARYgc2VjdXJlQHBy
-                aXZhdGVpbnRlcm5ldGFjY2Vzcy5jb20wgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJ
-                AoGBAOlVlkHcxfN5HAswpryG7AN9CvcvVzcXvSEo91qAl/IE8H0knKZkIAhe/z3m
-                hz0t91dBHh5yfqwrXlGiyilplVB9tfZohvcikGF3G6FFC9j40GKP0/d22JfR2vJt
-                4/5JKRBlQc9wllswHZGmPVidQbU0YgoZl00bAySvkX/u1005AgMBAAGjggEOMIIB
-                CjAdBgNVHQ4EFgQUl8qwY2t+GN0pa/wfq+YODsxgVQkwgdoGA1UdIwSB0jCBz4AU
-                l8qwY2t+GN0pa/wfq+YODsxgVQmhgaukgagwgaUxCzAJBgNVBAYTAlVTMQswCQYD
-                VQQIEwJPSDERMA8GA1UEBxMIQ29sdW1idXMxIDAeBgNVBAoTF1ByaXZhdGUgSW50
-                ZXJuZXQgQWNjZXNzMSMwIQYDVQQDExpQcml2YXRlIEludGVybmV0IEFjY2VzcyBD
-                QTEvMC0GCSqGSIb3DQEJARYgc2VjdXJlQHByaXZhdGVpbnRlcm5ldGFjY2Vzcy5j
-                b22CCQDrajJEdiUl6zAMBgNVHRMEBTADAQH/MA0GCSqGSIb3DQEBBQUAA4GBAByH
-                atXgZzjFO6qctQWwV31P4qLelZzYndoZ7olY8ANPxl7jlP3YmbE1RzSnWtID9Gge
-                fsKHi1jAS9tNP2E+DCZiWcM/5Y7/XKS/6KvrPQT90nM5klK9LfNvS+kFabMmMBe2
-                llQlzAzFiIfabACTQn84QLeLOActKhK8hFJy2Gy6
-                -----END CERTIFICATE-----
-            '''
-        if filename == 'credentials.txt':
-            fcontents = '''\
-                {user}
-                {pw}
-            '''.format(user=data['vpn_username'], pw=data['vpn_password'])
-        if filename == 'client.conf':
-            fcontents = '''\
-                client
-                dev tun
-                proto udp
-                # mssfix is needed to solve MTU issues (VPN stall) on some networks
-                mssfix 1400
-                remote {server} 1198
-                resolv-retry infinite
-                nobind
-                persist-key
-                persist-tun
-                cipher aes-128-cbc
-                auth sha1
-                tls-client
-                remote-cert-tls server
-                cd /etc/openvpn
-                auth-user-pass credentials.txt
-                # 'auth-nocache' appears to greatly reduce AUTH_FAILED errors (64% -> 6%
-                # in a quick test)
-                auth-nocache
-                # 'pull-filter ignore "auth-token"' seems eliminate errors on OpenVPN 2.4;
-                # see: https://www.privateinternetaccess.com/forum/discussion/24089
-                pull-filter ignore "auth-token"
-                crl-verify crl.rsa.2048.pem
-                ca ca.rsa.2048.crt
-                reneg-sec 0
-                comp-lzo yes
-                verb 3
-                mute-replay-warnings
-                log /tmp/openvpn.log
-                daemon
-            '''.format(server=data['vpn_server_host'])
-        if filename == 'restart-if-needed.sh':
-            # The OpenVPN default '--ping-restart 120' seems to not always recover connectivity.
-            fcontents = '''\
-                #!/bin/sh
-                vpn_endp=$( \\
-                    ip route  \\
-                    |grep '^10\.[0-9\.]* via 10\.[0-9\.]* dev tun'  \\
-                    |grep -o '^[0-9\.]*' \\
-                )
-                restart=0
-                if ! pidof openvpn ; then restart=1; fi
-                if ! ip route |grep '^128\.0\.0\.0/1 via .* dev tun' ; then restart=1; fi
-                if ! ping -q -c1 -W4 $vpn_endp |grep '1 packets received' ; then restart=1; fi
-                if ! (
-                    ping -q -c1 -W4 8.8.8.8 |grep '1 packets received' ||
-                    ping -q -c1 -W4 141.1.1.1 |grep '1 packets received'
-                ) ; then restart=1; fi
-                if [ $restart == 1 ] ; then
-                    killall openvpn && sleep 2
-                    killall -9 openvpn && sleep 2
-                    /usr/sbin/openvpn \\
-                        --syslog 'openvpn(vpnas)' \\
-                        --status /var/run/openvpn.vpnas.status \\
-                        --cd /etc/openvpn \\
-                        --config /etc/openvpn/client.conf
-                fi
-            '''
-        return textwrap.dedent(fcontents).encode()
-
-    def files():
-        return {
-            # filename              :  target directory on router
-            'ca.rsa.2048.crt'       : '/etc/openvpn',
-            'ca.rsa.4096.crt'       : '/etc/openvpn',
-            'crl.rsa.2048.pem'      : '/etc/openvpn',
-            'ca.crt'                : '/etc/openvpn',
-            'credentials.txt'       : '/etc/openvpn',
-            'client.conf'           : '/etc/openvpn',
-            'restart-if-needed.sh'  : '/etc/openvpn',
-        }
-
-
 def generate_new_password(length=12):
     """Return a new, secure, random password of the given length"""
     # Do not use visually similar characters: lIO01
@@ -440,7 +219,7 @@ def add_line_breaks(long_string, line_len=70):
 
 def possible_router_ips():
     """Return a list of IP addresses which may be a router - currently first IP of each subnet."""
-    possible_routers = []  # items are type ipaddress.ip_address
+    possible_routers = list()  # items are type ipaddress.ip_address
     for intf in netifaces.interfaces():  # e.g. eth0, lo
         for ip_ver in [netifaces.AF_INET, netifaces.AF_INET6]:  # IPv4 then IPv6
             if ip_ver in netifaces.ifaddresses(intf):  # if this interface has at least one address
@@ -527,7 +306,8 @@ class Router(yaml.YAMLObject):
         self.mac = mac
         self.nickname = new_nickname(mac)
         self.create = time.strftime("%Y-%m-%d_%H:%M:%S", time.gmtime())
-        self.version_map = ''
+        self.version_map = dict()
+        self.router_password = None
         self.client = None
 
     def generate_passwords(self):
@@ -545,38 +325,18 @@ class Router(yaml.YAMLObject):
         self.ssh_pubkey = add_line_breaks(pub, line_len=64)
         self.ssh_privkey = priv
 
-    def set_password_on_router(self):
+    def set_password_on_router(self, phase2):
         # It is also possible to set the router password via http, but this is
         # programmatically more complex, plus on older GL-iNet firmware, this
         # changes the WiFi password as well.
         # It would be more secure to use first_password below, and then set it again
         # with router_password via ssh.
-        root_shadow_line = 'root:' + hashed_md5_password(self.router_password) + ':0:0:99999:7:::'
-        # Possible better way to do following line: re.sub(r' *\r*[\t\n] *', '', self.ssh_pubkey)
-        authorized_keys_line = self.ssh_pubkey.translate(
-            {ord(c): None for c in ['\t', '\n', '\r']}
-        )
         prompt = '[\r\n]root@'
-        exit_cmd = 'exit\n'
         phase1 = {
             '[Ll]]ogin:' : 'root\n',
             '[Pp]assword:' : '\n',
             prompt : None,  # None == we have arrived
         }
-        phase2 = [
-            'cat /etc/openwrt_release\n',  # info for the logs
-            'uname -a\n',
-            'lsb_release -d || true\n',
-            'echo 12③4✔\n',
-            '''echo '{}' >/tmp/shadow\n'''.format(root_shadow_line),
-            '''grep -v '^root:' /etc/shadow >>/tmp/shadow\n''',
-            '''mv /tmp/shadow /etc/shadow\n''',
-            '''echo '{}' >>/etc/dropbear/authorized_keys\n'''.format(authorized_keys_line),
-            exit_cmd,  # exit_cmd must be last item in list
-        ]
-        # After above 'mv' command, this should connect you to router:
-        # ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@192.168.8.1
-        #
         # After a hard reset, some routers and firmware version listen for a telnet connection,
         # while others listen for an ssh connection with no authentication for 'root'. Try ssh
         # with no authentication first.
@@ -599,16 +359,18 @@ class Router(yaml.YAMLObject):
             )
         except paramiko.ssh_exception.NoValidConnectionsError:
             print_msg(1, "Initial connection via ssh failed - trying telnet.")
-        else:
-            for to_send in phase2:
-                print_msg(1, 'Router cmd:    ' + to_send.rstrip())
-                __, stdout, stderr = tmp_client.exec_command(to_send.rstrip())
+        except paramiko.ssh_exception.AuthenticationException:
+            pass  # router was reset and telnet will work -OR- it is already set up
+        else:  # ssh connected
+            for to_send in phase2.splitlines():
+                print_msg(1, 'Router cmd:    ' + to_send)
+                __, stdout, stderr = tmp_client.exec_command(to_send)
                 exitc = stdout.channel.recv_exit_status()
                 print_msg(1, 'Router stdout: '.join(['']+list(stdout)), end='')
                 print_msg(1, 'Router stderr: '.join(['']+list(stderr)), end='')
                 if exitc != 0:
                     tmp_client.close()
-                    raise RemoteExecutionError("Error running '{}' on router".format(to_send))
+                    raise RemoteExecutionError(to_send)
             tmp_client.close()
             return
         phase1_prompts = [re.compile(p.encode()) for p in phase1]
@@ -630,13 +392,12 @@ class Router(yaml.YAMLObject):
                     cycles += 1
                 if cycles >= 7:
                     raise CGError("Unable to log in to {}".format(self.nickname))
-                for to_send in phase2:  # phase 2 - commands to send router
+                for to_send in phase2.splitlines():  # phase 2 - commands to send router
                     try:
-                        t.write(to_send.encode())
+                        t.write((to_send+'\n').encode())
                         (__, __, data) = t.expect([re.compile(prompt.encode())], timeout=3)
                     except EOFError:
-                        if to_send == exit_cmd:  # successful disconnect
-                            pass
+                        pass
                     print_msg(1, ''.join(esc_seq_re.split(data.decode())), end='')
                 print_msg(1, '')  # make sure we end with a newline
         except (ConnectionRefusedError, EOFError):
@@ -645,7 +406,8 @@ class Router(yaml.YAMLObject):
             # pattern. Wait for the router to reboot and then start over.
             raise CGError("Unable to connect to {} at {}. ".format(self.nickname, self.ip)
                     + "Please factory-reset your router and try again.")
-        print_msg(1, "</telnet_log>")
+        finally:
+            print_msg(1, "</telnet_log>")
 
     def connect_ssh(self):
         if self.client != None:
@@ -719,8 +481,7 @@ class Router(yaml.YAMLObject):
             if okay_to_fail:
                 return err0
             else:
-                raise RemoteExecutionError("Error running '{}' on router: {}"
-                        .format(command, err0))
+                raise RemoteExecutionError(err0)
         return out
 
     def put(self, data, remote_path):
@@ -739,173 +500,108 @@ class Router(yaml.YAMLObject):
             self.client.close()
             self.client = None
 
-    def install_files(self):
-        vpn_conf = {
-                'vpn_username'    : self.vpn_username,
-                'vpn_password'    : self.vpn_password,
-                'vpn_server_host' : self.vpn_server_host,
-        }
-        for f, d in PrivateInternetAccess.files().items():
-            self.put(PrivateInternetAccess.file(filename=f, data=vpn_conf), d + '/' + f)
 
-    def update_group(self, name, from_ver, to_ver, code):
-        if from_ver >= to_ver:
-            return
-        print_msg(1, "Updating from {}{} to {}{}".format(name, from_ver, name, to_ver))
-        for line in code:
-            first_word = line.split(' ')[0]
-            if first_word == 'cg:install-files':
-                self.install_files()
-            elif first_word == 'cg:assert':  # very simplistic parser
-                # Following line based on: https://stackoverflow.com/a/2787064/10590519
-                r = re.compile(r'''((?:[^ "'`]|"[^"]*"|'[^']*'|`[^`]*`)+)''')
-                words = r.split(line)[1::2]
-                tokens = []  # words without quotes
-                for w in words:
-                    q = w[0]
-                    if q == '#':
-                        break;  # comment - ignore rest of line
-                    if q == '"' or q == "'":
-                        tokens.append(w[1:-1])
-                    elif q == '`':  # use backticks as in bash shell
-                        # output when executed on router
-                        tokens.append(self.exec(w[1:-1]).rstrip())
-                    else:
-                        tokens.append(w)
-                if len(tokens) != 4 or (tokens[2] != '==' and tokens[2] != '!='):
-                    raise CGError("Error parsing: {}".format(line))
-                if (tokens[2] == '==') ^ (tokens[1] == tokens[3]):
-                    raise RemoteExecutionError("Assertion failed: {}".format(line))
-            else:
-                self.exec(line)
-
-    def update_groups(self, code_text):
-        groups_updated_count = 0
-        http_password_sha256 = sha256(self.router_password.encode()).hexdigest()
-        code = code_text.format(
-            http_password_sha256=http_password_sha256,
-            wifi_password=self.wifi_password,
-        )
-        versions = {}  # router's current version number for each group
-        # Parse current version map from conf file
-        for group in re.split(r'\s+', self.version_map):
-            if len(group) == 0:
-                continue
-            m = re.match(r'([a-z]+)([0-9]+)', group)
-            if m:
-                versions[m[1]] = int(m[2])
-            else:
-                raise CGError("Invalid group name or version: {}".format(group))
-        line_re = re.compile(r'\n\s*')
-        group_title_re = re.compile(r'^---\s+group\s+([a-z]+)([0-9]+)($|\s)')
-        gname = None
-        gver = None
-        gcode = []
-        names_seen = set()
-        try:
-            # Parse code text blob and execute commands on router
-            for line in line_re.split(code):
-                if len(line) == 0 or line[0] == '#':
-                    continue
-                m = group_title_re.match(line)
-                if m:
-                    if gname:  # group title signals end of prior group, so execute now
-                        # Following line may raise RemoteExecutionError
-                        self.update_group(gname, versions[gname], gver, gcode)
-                        if versions[gname] != gver:
-                            versions[gname] = gver  # successful - update to new version number
-                            groups_updated_count += 1
-                    gname = m[1]
-                    gver = int(m[2])
-                    gcode = []
-                    if gname not in versions:
-                        versions[gname] = 0
-                    assert gver > 0, "version for group '{}' must be positive".format(gname)
-                    assert gname not in names_seen, "group '{}' listed twice".format(gname)
-                    names_seen.add(gname)
-                else:
-                    gcode.append(line)
-            assert gcode == [], "final group '{}' must have no code".format(gname)
-            del versions[gname]  # don't store final group in conf file
-        except RemoteExecutionError as err:
-            print_msg(1, err)
-            raise
-        finally:  # make sure version_map gets updated, even if success is only partial
-            versions_text = ' '.join([g+str(v) for g, v in versions.items()])
-            vt_width = 64 if len(versions_text) > 64 else 52
-            self.version_map = '\n'.join(textwrap.wrap(versions_text, width=vt_width))
-        return groups_updated_count
-
-
-class Config():
+class Config(yaml.YAMLObject):
+    yaml_loader = yaml.SafeLoader
+    yaml_tag = '!Config'
 
     def __init__(self):
-        self.dir = os.path.expanduser('~/.cleargopher')
-        try:
-            os.mkdir(self.dir)
-        except FileExistsError:
-            pass
-        self.__conf_path__ = os.path.join(self.dir, 'cleapher.conf')
+        self.routers = None
+    
+    def set_defaults(self):
+        self.routers = list()
+        self.default_vpn_username = input("Enter the PIA username to use on routers: ")
+        self.default_vpn_password = input("Enter the PIA password to use on routers: ")
+        self.default_vpn_server_host = input("Enter the PIA region to use on routers: ")
+
+
+class ConfigSaver():
 
     def long_str_representer(dumper, data):  # https://stackoverflow.com/a/33300001/10590519
         if len(data.splitlines()) > 1:  # check for multiline string
             return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
         return dumper.represent_scalar('tag:yaml.org,2002:str', data)
 
-    def load():
-        self = Config()
-        try:
-            with open(self.__conf_path__, 'r') as conf_file:
-                try:
-                    self.routers = yaml.safe_load(conf_file.read())
-                except yaml.YAMLError as yaml_err:
-                    raise CGError("Error parsing {}: {}".format(self.__conf_path__, yaml_err))
-        except FileNotFoundError:
-            self.routers = []  # no config file - start fresh
-        if self.routers == None:
-            self.routers = []  # empty config file - start fresh
-        for r in self.routers:
-            r.client = None
-        return self
+    def conf_dir():
+        return os.path.expanduser('~/.cleargopher')
+    
+    def _conf_path():
+        return os.path.join(ConfigSaver.conf_dir(), 'cleapher.conf')
 
-    def save(self):
-        yaml.add_representer(str, Config.long_str_representer)
+    def load():
+        config = Config()
+        conf_path = ConfigSaver._conf_path()
         try:
-            header = ("Clear Gopher YAML configuration file - be very careful when editing " 
-                    + "because indent, colons, and many other characters have special meaning")
-            body = yaml.dump(self.routers, default_flow_style=False)
-            with open(self.__conf_path__+'.0', 'w') as conf_file:
+            with open(conf_path, 'r') as conf_file:
+                try:
+                    config = yaml.safe_load(conf_file.read())
+                except yaml.YAMLError as yaml_err:
+                    raise CGError("Error parsing {}: {}".format(conf_path, yaml_err))
+        except FileNotFoundError:  # missing config file
+            pass
+        if config.routers == None:  # missing or empty config file - start fresh
+            config.set_defaults()
+        for r in config.routers:
+            r.client = None
+        return config
+
+    def save(config):
+        conf_path = ConfigSaver._conf_path()
+        try:
+            os.mkdir(ConfigSaver.conf_dir())
+        except FileExistsError:
+            pass
+        yaml.add_representer(str, ConfigSaver.long_str_representer)
+        # For Router.version_map, we use in-order dictionaries in YAML output - from:
+        # https://stackoverflow.com/a/52621703/10590519
+        yaml.add_representer(
+            dict,
+            lambda self, data: yaml.representer.SafeRepresenter.represent_dict(self, data.items())
+        )
+        try:
+            header = ("This is the Clear Gopher YAML configuration file. Be very careful " 
+                    + "when editing because indent, colons, and many other characters have "
+                    + "special meaning.")
+            # The 'width' option below does not work as expected
+            body = yaml.dump(config, default_flow_style=None, width=48)
+            with open(conf_path+'.0', 'w') as conf_file:
                 # Restrict file permissions to protect passwords, keys from other users
-                os.chmod(self.__conf_path__+'.0', 0o600)
+                os.chmod(conf_path+'.0', 0o600)
                 conf_file.write('# ' + '\n# '.join(textwrap.wrap(header, width=66)) + '\n')
                 # Don't save routers.client
                 conf_file.write(re.sub(r'\n *client:[^\n]+\n', '\n', body))
         except OSError as err:
-            raise CGError("Error saving configuration {}: {}".format(self.__conf_path__+'.0', err))
+            raise CGError("Error saving configuration {}: {}".format(conf_path+'.0', err))
         try:
-            # Create a .bak backup file and move the up-to-date file into place
-            os.rename(self.__conf_path__, self.__conf_path__+'.bak')
-            os.rename(self.__conf_path__+'.0', self.__conf_path__)
+            os.rename(conf_path, conf_path+'.bak')  # keep 1 old version
+        except FileNotFoundError:
+            pass
+        try:
+            os.rename(conf_path+'.0', conf_path)
         except FileNotFoundError as err:
-            raise CGError("Error saving configuration {}: {}".format(self.__conf_path__, err))
+            raise CGError("Error saving configuration {}: {}".format(conf_path, err))
 
 
-def wifi_hunt(conf):
+def wifi_hunt(conf, factory_wifi=''):
     """Scan and connect to router's WiFi network. Return SSID, password."""
-    factory_ssids = {  # list from: https://docs.gl-inet.com/en/2/setup/first-time_setup/
-        # SSID regex                   : password
-        r'^GL-iNet-[0-9A-Fa-f]{3}$'    : 'goodlife',
-        r'^GL-AR150-[0-9A-Fa-f]{3}$'   : 'goodlife',  # https://wikidevi.com/wiki/GL.iNet_GL-AR150
-        r'^GL-AR300M-[0-9A-Fa-f]{3}$'  : 'goodlife',  # https://wikidevi.com/wiki/GL.iNet_GL-AR300M
-    }
+    line_re = re.compile(r' {2,}: +')  # wifi_re and password separated by '  : ', one per line
+    factory_ssids = dict()
+    for line in factory_wifi.splitlines():
+        if line.startswith('#'):
+            continue
+        two_items = line_re.split(line)
+        if len(two_items) != 2:
+            raise CGError("Invalid factory_wifi data line: {}".format(line))
+        factory_ssids[two_items[0]] = two_items[1]
     nets = wifi_available_ssids()  # scan for nearby WiFi networks
-    known_ssids = {}  # SSID : password
+    known_ssids = dict()  # SSID : password
     for s in list(set(nets.values())):  # for each unique SSID
         for r in conf.routers:  # test SSIDs from conf file _first_
             if s == r.ssid:
+                print_msg(1, "Using stored password for WiFi network {}".format(s))
                 known_ssids[s] = r.wifi_password
         for e in factory_ssids:  # test regex list _second_
-            if s not in known_ssids and re.search(e, s):
+            if s not in known_ssids and re.match(e, s):
                 known_ssids[s] = factory_ssids[e]
     if len(known_ssids) == 0:
         print_msg(1, "Visible networks: {}".format(', '.join(list(set(nets.values())))))
@@ -919,14 +615,14 @@ def wifi_hunt(conf):
     return ssid, ssid_password
 
 
-def network_hunt(conf):
+def network_hunt(conf, ssid):
     """Scan local networks for router. Return existing or new Router() instance."""
     ip_list_full = [ipaddress.ip_address(r.ip) for r in conf.routers]  # IPs from config file
     ip_list_full += possible_router_ips()  # first IP of each detected network
     # Note ip_list_full will normally include 192.168.8.1
     ip_list_no_dups = [i for n,i in enumerate(ip_list_full) if i not in ip_list_full[:n]]
-    mac_to_ip = {}
-    router_options = []  # computed list of what could be a router
+    mac_to_ip = dict()
+    router_options = list()  # computed list of what could be a router
     for ip in ip_list_no_dups:  # for each IP that might be a router
         if isinstance(ip, ipaddress.IPv4Address):
             mac = getmac.get_mac_address(ip=str(ip))
@@ -962,219 +658,226 @@ def network_hunt(conf):
         raise CGError(err + "Multiple possible routers found")
     if len(router_options) == 0:
         raise CGError("No possible routers found")
-    router = router_options[0]
+    router = router_options[0]  # the chosen router
+    router.ssid = ssid
+    if not router.router_password:
+        router.generate_passwords()
+        router.generate_ssh_keys()
+        router.vpn_username = conf.default_vpn_username
+        router.vpn_password = conf.default_vpn_password
+        router.vpn_server_host = conf.default_vpn_server_host
+        # If router also serves as AP, once we have connected to the router via ssh, this
+        # could be used instead of above line:
+        # router.ssid = router.exec('uci get wireless.@wifi-iface[0].ssid').rstrip()
+        conf.routers.append(router)
     print_msg(1, "Using router {} (ip {})".format(router.nickname, router.ip))
     return router
 
 
-def do_configure():
-    conf = Config.load()
-    ssid, ssid_password = wifi_hunt(conf)
-    router = network_hunt(conf)
-    try:
-        try:
-            router.router_password
-        except AttributeError:  # if no conf file password, then it's a previously-unknown router
-            router.ssid = ssid
-            # If router also serves as AP, once we have connected to the router via ssh, this
-            # could be used instead of above line:
-            # router.ssid = router.exec('uci get wireless.@wifi-iface[0].ssid').rstrip()
-            router.generate_passwords()
-            router.generate_ssh_keys()
-            router.vpn_username = input("Enter the PIA username to use on this router: ")
-            router.vpn_password = input("Enter the PIA password to use on this router: ")
-            router.vpn_server_host = input("Enter the PIA region to use on this router: ")
-            conf.routers.append(router)
-            conf.save()
+class Coteries():
+    """
+    A coterie is a group of gophers, or in this context, a group of commands or a file
+    which changes the state of the router. A coterie module is a YAML file which contains
+    some metadata plus an ordered set of coteries which can be used to set up a router
+    for a particular purpose.
+
+    Example of the beginning of a .coterie file with line numbers added:
+
+     1  !CoterieModule
+     2  module_type: router_hardware
+     3  vpn_type: openvpn
+     4  display_name: GL.iNet
+     5  coteries:
+     6  - !Coterie
+     7  id: routerauth
+     8  delta: 0 1
+     9  sort: 15
+    10  type: routerauth
+    11  data: |
+    12      cat /etc/openwrt_release
+    13      uname -a
+
+    Line explanations:
+    - 1: required header
+    - 7: the name of the coterie
+    - 8: 2 integers separated by a space, representing the from and to version for this coterie
+    - 9: |
+        This integer defines the sequence in which coteries are applied. Coteries with the
+        same 'sort' will be done in the order listed in the .coterie file. The primary
+        purpose for this value is to be able to properly merge coteries of VPN providers and
+        router vendors.
+        10-19 configure router password and ssh key
+        20-29 check existing state and compatibility
+        30-39 configure system and other passwords
+        40-49 copy files and set permissions (45 is recommended for all VPN provider files and
+          commands)
+        50-59 install needed software
+        60-69 configure VPN, network, firewall
+        70-79 configure startup
+        80-89 after first reboot
+        90-99 testing
+    - 10: |
+        commands: list of shell commands to be run one-at-a-time on router
+        exploration: like 'commands' but okay for commands to fail
+        routerauth: like 'commands' but connect to router without authentication
+        file: file that is to be copied to router; must define 'path' and (in another coterie)
+          commands to set permissions
+        factory_wifi: list of WiFi SSIDs (regular expression), followed by '  : ' (additional
+          spaces are ignored), followed by the default WiFi password for the given SSID; one
+          SSID/password per line
+    """
+
+    class CoterieModule(yaml.YAMLObject):
+        yaml_loader = yaml.SafeLoader
+        yaml_tag = '!CoterieModule'
+
+    class Coterie(yaml.YAMLObject):
+        yaml_loader = yaml.SafeLoader
+        yaml_tag = '!Coterie'
+
+        def exec(self, router):
+            if self.type == 'factory_wifi':
+                return
+            version_now = router.version_map.get(self.id, 0)
+            version_available = int(self.delta.split(' ')[1])  # 'from' version not yet implemented
+            if version_now >= version_available:
+                return
+            print_msg(1, "Updating to {} {}".format(self.id, version_available))
+            data_no_params = self.data
+            if '{root_shadow_line}' in data_no_params:
+                p = 'root:' + hashed_md5_password(router.router_password) + ':0:0:99999:7:::'
+                data_no_params = data_no_params.replace('{root_shadow_line}', p)
+            if '{authorized_keys_line}' in data_no_params:
+                # Remove all whitespace except a space by itself
+                p = re.sub(r'(\s{2,})|([\t\r\n]+)|(\s+$)', '', router.ssh_pubkey)
+                data_no_params = data_no_params.replace('{authorized_keys_line}', p)
+            if '{http_password_sha256}' in data_no_params:
+                p = sha256(router.router_password.encode()).hexdigest()
+                data_no_params = data_no_params.replace('{http_password_sha256}', p)
+            # Alternatively, we could ignore the KeyError exception -
+            # see https://stackoverflow.com/a/17215533/10590519
             try:
-                router.set_password_on_router()
-            except paramiko.ssh_exception.AuthenticationException:
-                print_msg(1, "Connecting without ssh authentication failed.")
-        router.connect_ssh()
-        if router.client == None:  # couldn't authenticate - maybe router was reset
-            print_msg(1, "Unable to connect to {} at {}. Trying to reset password."
-                    .format(router.nickname, router.ip))
-            router.set_password_on_router()
-            router.connect_ssh()
-        # Group titles must begin (rest of line is a comment): --- group {name}
-        # Group names must be lowercase letters followed by a version number > 0.
-        # In-line comments are allowed but sent to router. Newline within quotes
-        # must be written: \\n
-        groups_gl_inet = '''
-            --- group sysinfoa1 ---
-            uname -a || true
-            date --utc '+%Y-%m-%d_%H:%M:%S' || true
-            cat /etc/banner |grep -v -e '^ ---------------' -e '^  \* ' -e '^ |' -e '^  __' || true
-            cat /etc/glversion || true
-            cat /etc/openwrt_release || true
-            cat /proc/cpuinfo || true
-            opkg print-architecture || true
-            /usr/sbin/openvpn --version || true
-            traceroute -n -m 6 141.1.1.1 || true
-            --- group sysinfob1 ---
-            #uptime
-            #ip address show
-            #ip rule show
-            #ip route show table all
-            #ls -l /etc/openvpn
-            #cat /etc/openvpn/*.conf
-            #cat /etc/config/openvpn |grep -v -e '^#' -e '^\W#' -e '^$'
-            #cat /etc/firewall.user
-            #uci show |grep -v '^wireless..wifi-iface....key='
-            #cat /tmp/openvpn.log
-            #iptables-save
-            --- group safecheck1 ---
-            # Verify router WiFi password has not yet been changed.
-            cg:assert `uci get wireless.@wifi-iface[0].key` == 'goodlife'
-            --- group pwlangtz1 passwords, timezone ---
-            uci set glconfig.general.password={http_password_sha256}
-            uci set wireless.@wifi-iface[0].key={wifi_password}  # does not take effect until
-            # router is rebooted
-            uci set glconfig.general.language=en  # choose English for the http UI
-            uci set luci.main.lang=en
-            uci set system.@system[0].zonename=UTC  # use UTC
-            uci set system.@system[0].timezone=GMT0
-            echo GMT0 >/etc/TZ
-            uci commit  # save changes on router
-            --- group filesa1 ---
-            mkdir -p /etc/openvpn
-            --- group filesb1 ---
-            cg:install-files  # copy files to router via Router.install_files()
-            --- group filesc1 ---
-            chmod 660 /etc/openvpn/*
-            chmod 770 /etc/openvpn/restart-if-needed.sh
-            --- group dns1 ---
-            # Set specific DNS servers so that the ISP's servers are not used.
-            uci add_list dhcp.@dnsmasq[-1].server='9.9.9.9'
-            uci add_list dhcp.@dnsmasq[-1].server='149.112.112.112'
-            uci add_list dhcp.@dnsmasq[-1].noresolv=1
-            uci set network.wan.peerdns=0
-            uci set network.wan.custom_dns=1
-            uci set network.wan.dns='9.9.9.9 149.112.112.112'
-            uci set glconfig.general.force_dns=yes
-            uci commit
-            --- group sysctl1 ---
-            # Note IPv6 should be disabled until we can properly address the security
-            # implications; see:
-            # https://www.privateinternetaccess.com/helpdesk/kb/articles/why-do-you-block-ipv6
-            grep -v -e ^net.ipv6.conf.all.disable_ipv6 -e ^net.ipv6.conf.default.disable_ipv6 -e ^net.ipv6.conf.lo.disable_ipv6 /etc/sysctl.conf >/tmp/sysctl
-            echo 'net.ipv6.conf.all.disable_ipv6=1' >>/tmp/sysctl
-            echo 'net.ipv6.conf.default.disable_ipv6=1' >>/tmp/sysctl
-            echo 'net.ipv6.conf.lo.disable_ipv6=1' >>/tmp/sysctl
-            cp /tmp/sysctl /etc/sysctl.conf
-            --- group dhcpsix1 ---
-            # Prevent 'dhcp6 solicit' to the ISP
-            uci add firewall rule
-            uci set firewall.@rule[-1].name='Block all IPv6 to ISP'
-            uci set firewall.@rule[-1].dest=wan
-            uci set firewall.@rule[-1].family=ipv6
-            uci set firewall.@rule[-1].target=REJECT
-            uci commit firewall
-            --- group ovpn1 ---
-            # Configure OpenVPN.
-            uci delete firewall.@forwarding[]
-            uci set firewall.vpn_zone=zone
-            uci set firewall.vpn_zone.name=VPN_client
-            uci set firewall.vpn_zone.input=ACCEPT
-            uci set firewall.vpn_zone.forward=REJECT
-            uci set firewall.vpn_zone.output=ACCEPT
-            uci set firewall.vpn_zone.network=VPN_client
-            uci set firewall.vpn_zone.masq=1
-            uci set firewall.forwarding_vpn1=forwarding
-            uci set firewall.forwarding_vpn1.dest=VPN_client
-            uci set firewall.forwarding_vpn1.src=lan
-            uci set network.VPN_client=interface
-            uci set network.VPN_client.proto=none
-            uci set network.VPN_client.ifname=tun0
-            uci set system.vpn=led
-            uci set system.vpn.default=0
-            uci set system.vpn.name=vpn
-            uci set system.vpn.sysfs='gl-ar300m:lan'
-            uci set system.vpn.trigger=netdev
-            uci set system.vpn.dev=tun0
-            uci set system.vpn.mode='link tx rx'
-            uci commit
-            --- group opkga1 ---
-            # Install OpenVPN and iptables tools (OpenVPN is pre-installed on GL-iNet routers).
-            opkg update
-            if   [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn; fi  # OpenWrt older than Chaos Calmer
-            if ! [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn-openssl; fi  # Chaos Calmer and later
-            --- group opkgb1 ---
-            if ! ( [ -f /tmp/opkg-lists/packages ] || [ -f /tmp/opkg-lists/*_packages ] ) ; then opkg update; fi
-            opkg install kmod-ipt-filter iptables-mod-filter  # for iptables --match string
-            --- group noleak1 ---
-            # Prevent leaking data to the ISP.
-            uci add firewall rule
-            uci set firewall.@rule[-1].name='Block all DNS to ISP except *.privateinternetaccess.com'
-            uci set firewall.@rule[-1].dest=wan
-            uci set firewall.@rule[-1].family=ipv4
-            uci set firewall.@rule[-1].proto=tcpudp
-            uci set firewall.@rule[-1].dest_port=53
-            uci set firewall.@rule[-1].extra='--match string --algo bm ! --hex-string |15|privateinternetaccess|03|com|00| --from 40 --to 66'
-            uci set firewall.@rule[-1].target=REJECT
-            uci add firewall rule
-            uci set firewall.@rule[-1].name='Allow LAN clients DNS to ISP for *.privateinternetaccess.com'
-            uci set firewall.@rule[-1].src=lan
-            uci set firewall.@rule[-1].dest=wan
-            uci set firewall.@rule[-1].family=ipv4
-            uci set firewall.@rule[-1].proto=tcpudp
-            uci set firewall.@rule[-1].dest_port=53
-            uci set firewall.@rule[-1].extra='--match string --algo bm   --hex-string |15|privateinternetaccess|03|com|00| --from 40 --to 66'
-            uci set firewall.@rule[-1].target=ACCEPT
-            uci add firewall rule
-            uci set firewall.@rule[-1].name='Block LAN to ISP (TCP) except ssh'
-            uci set firewall.@rule[-1].src=lan
-            uci set firewall.@rule[-1].dest=wan
-            uci set firewall.@rule[-1].family=ipv4
-            uci set firewall.@rule[-1].proto=tcp
-            uci set firewall.@rule[-1].extra='--match multiport ! --dports 22'
-            uci set firewall.@rule[-1].target=REJECT
-            uci add firewall rule
-            uci set firewall.@rule[-1].name='Block LAN to ISP (UDP) except OpenVPN'
-            uci set firewall.@rule[-1].src=lan
-            uci set firewall.@rule[-1].dest=wan
-            uci set firewall.@rule[-1].family=ipv4
-            uci set firewall.@rule[-1].proto=udp
-            uci set firewall.@rule[-1].extra='--match multiport ! --dports 1194,1198'
-            uci set firewall.@rule[-1].target=REJECT
-            uci commit firewall
-            --- group twothreefix1 ---
-            # Disable options not supported in OpenVPN 2.3
-            if /usr/sbin/openvpn --version |grep '^OpenVPN 2\.3\.' ; then sed -i -e 's/^pull-filter /#pull-filter /' /etc/openvpn/client.conf; fi
-            --- group starta1 ---
-            # It seems that `/etc/init.d/openvpn enable` isn't reliable and
-            # `/etc/init.d/openvpn start` (run at boot) starts a new process every 5 seconds,
-            # so we use cron to check every 60 seconds if OpenVPN is working.
-            (crontab -l 2>/dev/null; echo '* * * * * /etc/openvpn/restart-if-needed.sh') |crontab -
-            --- group teststart1 ---
-            # Test OpenVPN start-up, e.g. errors in .conf file. Displayed messages are golden.
-            /usr/sbin/openvpn --cd /etc/openvpn --config /etc/openvpn/client.conf
-            --- group complete1 ---  # end marker
-        '''
-        try:
-            update_count = router.update_groups(groups_gl_inet)
-            if update_count > 0:
-                router.exec('reboot')
-            else:
-                print_msg(1, "Router is already up-to-date")
-        except RemoteExecutionError:
-            raise CGError("Unable to fully configure router {}. ".format(router.nickname)
-                    + "Reboot reboot router and try again.")
-        # All groups successfully updated.
+                data_no_params = data_no_params.format(**vars(router))
+            except (KeyError, IndexError) as err:
+                raise CGError("Unknown named parameter in coterie {}: {}".format(self.id, err))
+            try:
+                if self.type == 'routerauth':
+                    router.set_password_on_router(data_no_params)
+                elif self.type == 'exploration':
+                    router.connect_ssh()
+                    for line in data_no_params.splitlines():
+                        router.exec(line, okay_to_fail = True)
+                elif self.type == 'commands':
+                    router.connect_ssh()
+                    for line in data_no_params.splitlines():
+                        router.exec(line, okay_to_fail = False)
+                elif self.type == 'file':
+                    router.connect_ssh()
+                    router.put(data_no_params.encode(), self.path)
+            except RemoteExecutionError as err:
+                raise CGError("Failed to execute coterie {}: {}".format(self.id, err))
+            router.version_map[self.id] = version_available  # we have now successfully upgraded
+
+    def load():
+        """Load and validate coterie modules."""
+        self = Coteries()
+        valid_module_types = {'vpn_provider', 'router_hardware'}
+        valid_vpn_types = {'openvpn'}
+        valid_types = {'commands', 'exploration', 'routerauth', 'file', 'factory_wifi'}
+        valid_id_re = re.compile(r'[a-zA-Z0-9\._-]+')
+        valid_display_name_re = re.compile(r'[^\t\r\n]+')
+        self.modules = list()
+        our_dir = os.path.dirname(Path(sys.argv[0]).resolve())
+        coteries_dir = os.path.join(our_dir, 'coteries')
+        for f in os.listdir(coteries_dir):
+            f_path = os.path.join(coteries_dir, f)
+            with open(f_path, 'r') as coterie_file:
+                try:
+                    module = yaml.safe_load(coterie_file)
+                except (yaml.YAMLError, yaml.constructor.ConstructorError) as yaml_err:
+                    raise CGError("Error parsing {}: {}".format(f, yaml_err))
+            try:
+                if module.module_type not in valid_module_types:
+                    raise CGError(
+                        "Invalid module_type in {}: {}".format(f, module.module_type)
+                    )
+                if module.vpn_type not in valid_vpn_types:
+                    raise CGError("Invalid vpn_type in {}: {}".format(f, module.vpn_type))
+                if not valid_display_name_re.match(module.display_name):
+                    raise CGError("Invalid display_name in {}: {}".format(f, module.display_name))
+            except AttributeError as err:
+                raise CGError("Missing item in {}: {}".format(f, err))
+            sort_max = 0
+            ids = set()
+            for c in module.coteries:
+                try:
+                    if not valid_id_re.match(c.id):
+                        raise CGError("Invalid id in {}: {}".format(f, c.id))
+                    if c.id in ids:
+                        raise CGError("Duplicate id in {}: {}".format(f, c.id))
+                    ids.add(c.id)
+                except AttributeError as err:
+                    raise CGError("Missing id for a coterie in {}".format(f))
+                try:
+                    if int(c.delta.split(' ')[0]) >= int(c.delta.split(' ')[1]):
+                        raise CGError("Invalid delta in {}#{}: {}".format(f, c.id, c.delta))
+                    if c.sort < sort_max:
+                        raise CGError("Coterie {}#{} is not in sort order".format(f, c.id))
+                    sort_max = c.sort
+                    if c.type not in valid_types:
+                        raise CGError("Invalid type in {}#{}: {}".format(f, c.id, c.type))
+                    if c.type == 'file' and c.path[0] != '/':
+                        raise CGError("Invalid path in {}#{}: {}".format(f, c.id, c.path))
+                    if c.data[-1][-1] != '\n':
+                        raise CGError("Data does not end in a newline in {}#{}".format(f, c.id))
+                except AttributeError as err:
+                    raise CGError("Missing item in {}#{}: {}".format(f, c.id, err))
+            print_msg(2, "Loaded module {} ({} coteries)".format(f_path, len(module.coteries)))
+            module.elected = True  # selecting a subset of modules is not yet implemented
+            self.modules.append(module)
+        return self
+
+    def elected_coteries(self):
+        """Return a list of coteries from all elected modules"""
+        coteries_from_elected_modules = list()
+        for m in self.modules:
+            if m.elected:
+                coteries_from_elected_modules += m.coteries
+        ids = set()
+        for c in coteries_from_elected_modules:  # be certain we have no duplicate IDs here
+            if c.id in ids:
+                raise CGError("Duplicate coterie id {}".format(c.id))
+            ids.add(c.id)
+        return sorted(coteries_from_elected_modules, key=lambda c: c.sort)
+
+
+def do_router_set_up():
+    coteries = Coteries.load()
+    elected = coteries.elected_coteries()
+    conf = ConfigSaver.load()
+    try:
+        factory_wifi = next((c.data for c in elected if c.type == 'factory_wifi'), None)
+        ssid, ssid_password = wifi_hunt(conf, factory_wifi)
+        router = network_hunt(conf, ssid)
     except:
-        router.close()  # docs emphasize importance of closing Paramiko client
-        conf.save()
+        ConfigSaver.save(conf)
         raise
-    else:
-        router.close()
-        conf.save()
+    try:
+        for c in elected:
+            c.exec(router)
+        print_msg(1, "Set-up successful")
+    except:
+        raise
+    finally:
+        router.close()  # docs emphasize importance of closing Paramiko client
+        ConfigSaver.save(conf)
 
 
 def do_shell():
     """Execute shell commands on the router. This is mostly for testing and as example code."""
-    conf = Config.load()
+    conf = ConfigSaver.load()
     ssid, ssid_password = wifi_hunt(conf)
-    router = network_hunt(conf)
+    router = network_hunt(conf, ssid)
     try:
         router.connect_ssh()
         if args.verbose > 1:
@@ -1192,17 +895,20 @@ def do_shell():
             except RemoteExecutionError as err:
                 print(err)
     except:
-        router.close()  # docs emphasize importance of closing Paramiko client
         raise
-    else:
-        router.close()
+    finally:
+        router.close()  # docs emphasize importance of closing Paramiko client
 
 
 def main():
-    if args.command == 'configure':
-        do_configure()
+    if args.command == 'set-up':
+        do_router_set_up()
     elif args.command == 'shell':
         do_shell()
+    elif args.command == 'internal-tests':
+        coteries = Coteries.load()
+        first = coteries.modules[1].coteries[0].data
+        print_msg(1, "Internal tests successful")
 
 
 if __name__ == '__main__':
@@ -1210,3 +916,4 @@ if __name__ == '__main__':
         main()
     except CGError as err:
         print_msg(0, err)
+        exit(1)

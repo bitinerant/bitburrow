@@ -59,7 +59,7 @@ For these instructions, you will need a computer with Ubuntu Linux installed.
 
 
 ### 5. Reset the router
-* If the VPN router has been used or configured before, reset it to its factory settings:
+* If the VPN router has been used or set up before, reset it to its factory settings:
 	* Power it on and wait 1 minute for it to boot.
 	* Press and hold the reset button on the router for a full 10 seconds.
 	* Release the button and wait about 3 minutes.
@@ -103,7 +103,7 @@ For these instructions, you will need a computer with Ubuntu Linux installed.
 * Run the main script within the activated virtual environment.
 
     ```bash
-    (venv) $ ./main.py -v configure
+    (venv) $ ./main.py -v set-up
     ```
 
 * You will be prompted to enter the VPN username, password, and location from steps 2 and 3, above.

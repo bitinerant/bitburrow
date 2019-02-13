@@ -1,0 +1,283 @@
+!CoterieModule
+module_type: router_hardware
+vpn_type: openvpn
+display_name: GL.iNet
+coteries:
+- !Coterie
+  id: wifi
+  delta: 0 1
+  sort: 1
+  type: factory_wifi
+  # From https://wikidevi.com/wiki/GL.iNet_GL-AR150 and https://wikidevi.com/wiki/GL.iNet_GL-AR300M
+  # See also https://docs.gl-inet.com/en/2/setup/first-time_setup/
+  data: |
+    # SSID regex              : password
+    GL-iNet-[0-9A-Fa-f]{3}    : goodlife
+    GL-AR150-[0-9A-Fa-f]{3}   : goodlife
+    GL-AR300M-[0-9A-Fa-f]{3}  : goodlife
+- !Coterie
+  id: routerauth
+  delta: 0 1
+  sort: 15
+  type: routerauth
+  # After the `mv /tmp/shadow /etc/shadow` below, you should be able to connect to the router
+  # via: ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@192.168.8.1
+  data: |
+    cat /etc/openwrt_release
+    uname -a
+    lsb_release -d || true
+    echo 12③4✔
+    echo '{root_shadow_line}' >/tmp/shadow
+    grep -v '^root:' /etc/shadow >>/tmp/shadow
+    mv /tmp/shadow /etc/shadow
+    echo '{authorized_keys_line}' >>/etc/dropbear/authorized_keys
+    exit
+- !Coterie
+  id: sysinfo1
+  delta: 0 1
+  sort: 25
+  type: exploration
+  data: |
+    uname -a
+    date --utc '+%Y-%m-%d_%H:%M:%S'
+    cat /etc/banner |grep -v -e '^ ---------------' -e '^  \* ' -e '^ |' -e '^  __'
+    cat /etc/glversion
+    cat /etc/openwrt_release
+    cat /proc/cpuinfo
+    opkg print-architecture
+    /usr/sbin/openvpn --version
+    traceroute -n -m 6 141.1.1.1
+- !Coterie
+  id: sysinfo2
+  delta: 0 1
+  sort: 25
+  type: exploration
+  data: |
+    uptime
+    ip address show
+    #ip rule show
+    #ip route show table all
+    ls -l /etc/openvpn
+    #cat /etc/openvpn/*.conf
+    #cat /etc/config/openvpn |grep -v -e '^#' -e '^\W#' -e '^$'
+    #cat /etc/firewall.user
+    #uci show |grep -v '^wireless..wifi-iface....key='
+    #cat /tmp/openvpn.log
+    #iptables-save
+- !Coterie
+  id: safecheck
+  delta: 0 1
+  sort: 35
+  type: commands
+  # Verify router WiFi password has not yet been changed.
+  data: |
+    if [ $(uci get wireless.@wifi-iface[0].key) != 'goodlife' ] ; then false; fi
+- !Coterie
+  id: pwlangtz
+  delta: 0 1
+  sort: 35
+  type: commands
+  # Set passwords and timezone
+  # The 'wifi_password' update below does not take effect until the router is rebooted
+  data: |
+    uci set glconfig.general.password={http_password_sha256}
+    uci set wireless.@wifi-iface[0].key={wifi_password}
+    uci set glconfig.general.language=en  # choose English for the http UI
+    uci set luci.main.lang=en
+    uci set system.@system[0].zonename=UTC
+    uci set system.@system[0].timezone=GMT0
+    echo GMT0 >/etc/TZ
+    uci commit
+- !Coterie
+  id: restart-if-needed.sh
+  delta: 0 1
+  sort: 46
+  type: file
+  path: /etc/openvpn/restart-if-needed.sh
+  # The OpenVPN default '--ping-restart 120' seems to not always recover connectivity.
+  data: |
+    #!/bin/sh
+    vpn_endp=$(ip route |grep '^10\.[0-9\.]* via 10\.[0-9\.]* dev tun' |grep -o '^[0-9\.]*')
+    restart=0
+    if ! pidof openvpn ; then restart=1; fi
+    if ! ip route |grep '^128\.0\.0\.0/1 via .* dev tun' ; then restart=1; fi
+    if ! ping -q -c1 -W4 $vpn_endp |grep '1 packets received' ; then restart=1; fi
+    if ! (
+        ping -q -c1 -W4 8.8.8.8 |grep '1 packets received' ||
+        ping -q -c1 -W4 141.1.1.1 |grep '1 packets received'
+    ) ; then restart=1; fi
+    if [ $restart == 1 ] ; then
+        killall openvpn && sleep 2
+        killall -9 openvpn && sleep 2
+        /usr/sbin/openvpn --syslog 'openvpn(vpnas)' --status /var/run/openvpn.vpnas.status --cd /etc/openvpn --config /etc/openvpn/client.conf
+    fi
+- !Coterie
+  id: chmod
+  delta: 0 1
+  sort: 49
+  type: commands
+  data: |
+    chmod 770 /etc/openvpn/restart-if-needed.sh
+- !Coterie
+  id: opkg1
+  delta: 0 1
+  sort: 55
+  type: commands
+  # Install OpenVPN and iptables tools (OpenVPN is pre-installed on GL-iNet routers)
+  data: |
+    if ! ( [ -f /tmp/opkg-lists/packages ] || [ -f /tmp/opkg-lists/*_packages ] ) ; then opkg update; fi
+    if   [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn; fi  # OpenWrt older than Chaos Calmer
+    if ! [ $(grep -o '^[0-9]*' /etc/openwrt_version) -lt 15 ] ; then opkg install openvpn-openssl; fi  # Chaos Calmer and later
+- !Coterie
+  id: opkg2
+  delta: 0 1
+  sort: 55
+  type: commands
+  data: |
+    if ! ( [ -f /tmp/opkg-lists/packages ] || [ -f /tmp/opkg-lists/*_packages ] ) ; then opkg update; fi
+    opkg install kmod-ipt-filter iptables-mod-filter  # for iptables --match string
+- !Coterie
+  id: dns
+  delta: 0 1
+  sort: 65
+  type: commands
+  # Set specific DNS servers so that the ISP's servers are not used.
+  data: |
+    uci add_list dhcp.@dnsmasq[-1].server='9.9.9.9'
+    uci add_list dhcp.@dnsmasq[-1].server='149.112.112.112'
+    uci add_list dhcp.@dnsmasq[-1].noresolv=1
+    uci set network.wan.peerdns=0
+    uci set network.wan.custom_dns=1
+    uci set network.wan.dns='9.9.9.9 149.112.112.112'
+    uci set glconfig.general.force_dns=yes
+    uci commit
+- !Coterie
+  id: ipv6
+  delta: 0 1
+  sort: 65
+  type: commands
+  # Note IPv6 should be disabled until we can properly address the security
+  # implications; see:
+  # https://www.privateinternetaccess.com/helpdesk/kb/articles/why-do-you-block-ipv6
+  data: |
+    grep -v -e ^net.ipv6.conf.all.disable_ipv6 -e ^net.ipv6.conf.default.disable_ipv6 -e ^net.ipv6.conf.lo.disable_ipv6 /etc/sysctl.conf >/tmp/sysctl
+    echo 'net.ipv6.conf.all.disable_ipv6=1' >>/tmp/sysctl
+    echo 'net.ipv6.conf.default.disable_ipv6=1' >>/tmp/sysctl
+    echo 'net.ipv6.conf.lo.disable_ipv6=1' >>/tmp/sysctl
+    cp /tmp/sysctl /etc/sysctl.conf
+- !Coterie
+  id: dhcp6
+  delta: 0 1
+  sort: 65
+  type: commands
+  # Prevent 'dhcp6 solicit' to the ISP
+  data: |
+    uci add firewall rule
+    uci set firewall.@rule[-1].name='Block all IPv6 to ISP'
+    uci set firewall.@rule[-1].dest=wan
+    uci set firewall.@rule[-1].family=ipv6
+    uci set firewall.@rule[-1].target=REJECT
+    uci commit firewall
+- !Coterie
+  id: ovpn
+  delta: 0 1
+  sort: 65
+  type: commands
+  # Configure OpenVPN.
+  data: |
+    uci delete firewall.@forwarding[]
+    uci set firewall.vpn_zone=zone
+    uci set firewall.vpn_zone.name=VPN_client
+    uci set firewall.vpn_zone.input=ACCEPT
+    uci set firewall.vpn_zone.forward=REJECT
+    uci set firewall.vpn_zone.output=ACCEPT
+    uci set firewall.vpn_zone.network=VPN_client
+    uci set firewall.vpn_zone.masq=1
+    uci set firewall.forwarding_vpn1=forwarding
+    uci set firewall.forwarding_vpn1.dest=VPN_client
+    uci set firewall.forwarding_vpn1.src=lan
+    uci set network.VPN_client=interface
+    uci set network.VPN_client.proto=none
+    uci set network.VPN_client.ifname=tun0
+    uci set system.vpn=led
+    uci set system.vpn.default=0
+    uci set system.vpn.name=vpn
+    uci set system.vpn.sysfs='gl-ar300m:lan'
+    uci set system.vpn.trigger=netdev
+    uci set system.vpn.dev=tun0
+    uci set system.vpn.mode='link tx rx'
+    uci commit
+- !Coterie
+  id: noleak
+  delta: 0 1
+  sort: 65
+  type: commands
+  # Prevent leaking data to the ISP
+  data: |
+    uci add firewall rule
+    uci set firewall.@rule[-1].name='Block all DNS to ISP except *.privateinternetaccess.com'
+    uci set firewall.@rule[-1].dest=wan
+    uci set firewall.@rule[-1].family=ipv4
+    uci set firewall.@rule[-1].proto=tcpudp
+    uci set firewall.@rule[-1].dest_port=53
+    uci set firewall.@rule[-1].extra='--match string --algo bm ! --hex-string |15|privateinternetaccess|03|com|00| --from 40 --to 66'
+    uci set firewall.@rule[-1].target=REJECT
+    uci add firewall rule
+    uci set firewall.@rule[-1].name='Allow LAN clients DNS to ISP for *.privateinternetaccess.com'
+    uci set firewall.@rule[-1].src=lan
+    uci set firewall.@rule[-1].dest=wan
+    uci set firewall.@rule[-1].family=ipv4
+    uci set firewall.@rule[-1].proto=tcpudp
+    uci set firewall.@rule[-1].dest_port=53
+    uci set firewall.@rule[-1].extra='--match string --algo bm   --hex-string |15|privateinternetaccess|03|com|00| --from 40 --to 66'
+    uci set firewall.@rule[-1].target=ACCEPT
+    uci add firewall rule
+    uci set firewall.@rule[-1].name='Block LAN to ISP (TCP) except ssh'
+    uci set firewall.@rule[-1].src=lan
+    uci set firewall.@rule[-1].dest=wan
+    uci set firewall.@rule[-1].family=ipv4
+    uci set firewall.@rule[-1].proto=tcp
+    uci set firewall.@rule[-1].extra='--match multiport ! --dports 22'
+    uci set firewall.@rule[-1].target=REJECT
+    uci add firewall rule
+    uci set firewall.@rule[-1].name='Block LAN to ISP (UDP) except OpenVPN'
+    uci set firewall.@rule[-1].src=lan
+    uci set firewall.@rule[-1].dest=wan
+    uci set firewall.@rule[-1].family=ipv4
+    uci set firewall.@rule[-1].proto=udp
+    uci set firewall.@rule[-1].extra='--match multiport ! --dports 1194,1198'
+    uci set firewall.@rule[-1].target=REJECT
+    uci commit firewall
+- !Coterie
+  id: ovpn2.3fix
+  delta: 0 1
+  sort: 65
+  type: commands
+  # Disable options not supported in OpenVPN 2.3
+  data: |
+    if /usr/sbin/openvpn --version |grep '^OpenVPN 2\.3\.' ; then sed -i -e 's/^pull-filter /#pull-filter /' /etc/openvpn/client.conf; fi
+- !Coterie
+  id: start
+  delta: 0 1
+  sort: 75
+  type: commands
+  # It seems that `/etc/init.d/openvpn enable` isn't reliable and
+  # `/etc/init.d/openvpn start` (run at boot) starts a new process every 5 seconds,
+  # so we use cron to check every 60 seconds if OpenVPN is working.
+  data: |
+    (crontab -l 2>/dev/null; echo '* * * * * /etc/openvpn/restart-if-needed.sh') |crontab -
+- !Coterie
+  id: teststart
+  delta: 0 1
+  sort: 75
+  type: commands
+  # Test OpenVPN start-up, e.g. errors in .conf file. Displayed messages are golden.
+  data: |
+    /usr/sbin/openvpn --cd /etc/openvpn --config /etc/openvpn/client.conf
+- !Coterie
+  id: reboot
+  delta: 0 1
+  sort: 79
+  type: commands
+  data: |
+    reboot
