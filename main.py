@@ -52,25 +52,36 @@ def print_msg(level, msg, end='\n'):
 # Optional arguments
 parser = argparse.ArgumentParser(description=_("Configures a router as a VPN client"))
 group_verbose = parser.add_mutually_exclusive_group()
-group_verbose.add_argument('-v', '--verbose', action='count', default=1,
-        help=_("increase output verbosity; can be used multiple times"))
-group_verbose.add_argument('-q','--quiet', action='store_const', const=0,
-        dest='verbose',  # mapping: '-q'->0 / default->1 / '-v'->2 / '-vv'->3
-        help=_("silence error messages"))
-parser.add_argument('-y','--yes', action='store_true', 
-        help=_("unattended mode (answer 'yes' to all questions)"))
+group_verbose.add_argument(
+    '-v',
+    '--verbose',
+    action='count',
+    default=1,
+    help=_("increase output verbosity; can be used multiple times"),
+)
+group_verbose.add_argument(
+    '-q',
+    '--quiet',
+    action='store_const',
+    const=0,
+    dest='verbose',  # mapping: '-q'->0 / default->1 / '-v'->2 / '-vv'->3
+    help=_("silence error messages"),
+)
+parser.add_argument(
+    '-y', '--yes', action='store_true', help=_("unattended mode (answer 'yes' to all questions)")
+)
 # Mandatory arguments
 parser.add_argument(
     'command',
     choices=('set-up', 'update', 'shell', 'internal-tests'),
     metavar='command',
-    help=_("task to perform: set-up, update, or shell")
+    help=_("task to perform: set-up, update, or shell"),
 )
-        # To get a real shell (in step 3 use 'router_password' from ~/.cleargopher/cleapher.conf):
-        # ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa  # if prompted, don't overwrite existing key
-        # ssh-keyscan 192.168.8.1 2>/dev/null |perl -pe 's|^[^ ]*|*|' >>~/.ssh/known_hosts
-        # cat ~/.ssh/id_rsa.pub |ssh root@192.168.8.1 'cat - >>/etc/dropbear/authorized_keys'
-        # ssh root@192.168.8.1  # no password needed from now on
+# To get a real shell (in step 3 use 'router_password' from ~/.cleargopher/cleapher.conf):
+# ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa  # if prompted, don't overwrite existing key
+# ssh-keyscan 192.168.8.1 2>/dev/null |perl -pe 's|^[^ ]*|*|' >>~/.ssh/known_hosts
+# cat ~/.ssh/id_rsa.pub |ssh root@192.168.8.1 'cat - >>/etc/dropbear/authorized_keys'
+# ssh root@192.168.8.1  # no password needed from now on
 args = parser.parse_args()
 
 
@@ -102,7 +113,7 @@ def wifi_available_ssids():
             continue
         sig_levels = None
         # Wait until WiFi scan has completed, normally 0.8 - 3.8 seconds (including the 0.4 above).
-        for delay in range(4,68):  # tenths of seconds; upper limit slightly arbitrary
+        for delay in range(4, 68):  # tenths of seconds; upper limit slightly arbitrary
             try:
                 # AccessPoint docs:
                 # https://developer.gnome.org
@@ -116,8 +127,7 @@ def wifi_available_ssids():
             # A change in signal levels means WiFi scan has completed.
             if sig_levels != None and new_sig_levels != sig_levels:
                 print_msg(
-                    2,
-                    _("WiFi scan delay {}, signal levels {}").format(delay, new_sig_levels)
+                    2, _("WiFi scan delay {}, signal levels {}").format(delay, new_sig_levels)
                 )
                 for ap in aps:
                     macs_found[ap.HwAddress.lower()] = ap.Ssid
@@ -132,12 +142,12 @@ def wifi_connect(target_ssid, password):
     # and: https://github.com/seveas/python-networkmanager/blob/master/examples/add_connection.py
     nm_nm = NetworkManager.NetworkManager
     for c in nm_nm.ActiveConnections:
-        s =c.Connection.GetSettings()
+        s = c.Connection.GetSettings()
         if '802-11-wireless' in s and s['802-11-wireless']['ssid'] == target_ssid:
-            print_msg(1,_("Already connected to WiFi network {}").format(target_ssid))
+            print_msg(1, _("Already connected to WiFi network {}").format(target_ssid))
             return
     conn_to_activate = None
-    for twice in range(0,2):
+    for twice in range(0, 2):
         for c in NetworkManager.Settings.ListConnections():
             if c.GetSettings()['connection']['type'] != '802-11-wireless':
                 continue
@@ -170,13 +180,16 @@ def wifi_connect(target_ssid, password):
         # Now repeat 'twice' loop to find the just-added item in ListConnections()
     for dev in nm_nm.GetDevices():
         if dev.DeviceType == NetworkManager.NM_DEVICE_TYPE_WIFI:
-            print_msg(1,_("Connecting to WiFi network {}").format(target_ssid))
+            print_msg(1, _("Connecting to WiFi network {}").format(target_ssid))
             nm_nm.ActivateConnection(conn_to_activate, dev, _("/"))
             time.sleep(3)
             return
-    raise CGError(_("Cannot connect to Wifi network {} - no suitable devices are available")
-                .format(target_ssid))
- 
+    raise CGError(
+        _("Cannot connect to Wifi network {} - no suitable devices are available").format(
+            target_ssid
+        )
+    )
+
 
 def generate_new_password(length=12):
     """Return a new, secure, random password of the given length"""
@@ -198,26 +211,31 @@ def hashed_md5_password(password, salt=None):  # https://stackoverflow.com/a/272
 def generate_ssh_key_pair():  # based on: https://stackoverflow.com/a/39126754/10590519
     """Return a tuple containing new public and private keys."""
     key = rsa.generate_private_key(
-        backend=crypto_default_backend(),
-        public_exponent=65537,
-        key_size=2048
+        backend=crypto_default_backend(), public_exponent=65537, key_size=2048
     )
     private_key = key.private_bytes(
         crypto_serialization.Encoding.PEM,
         crypto_serialization.PrivateFormat.PKCS8,
-        crypto_serialization.NoEncryption()
+        crypto_serialization.NoEncryption(),
     ).decode()
-    public_key = key.public_key().public_bytes(
-        crypto_serialization.Encoding.OpenSSH,
-        crypto_serialization.PublicFormat.OpenSSH
-    ).decode()
+    public_key = (
+        key.public_key()
+        .public_bytes(
+            crypto_serialization.Encoding.OpenSSH, crypto_serialization.PublicFormat.OpenSSH
+        )
+        .decode()
+    )
     # 'RSA' needs to be in header; looks like: https://github.com/paramiko/paramiko/issues/1226
-    return (public_key, private_key.replace('-BEGIN PRIVATE KEY-', '-BEGIN RSA PRIVATE KEY-')
-                                   .replace('-END PRIVATE KEY-', '-END RSA PRIVATE KEY-'))
+    return (
+        public_key,
+        private_key.replace('-BEGIN PRIVATE KEY-', '-BEGIN RSA PRIVATE KEY-').replace(
+            '-END PRIVATE KEY-', '-END RSA PRIVATE KEY-'
+        ),
+    )
 
 
 def add_line_breaks(long_string, line_len=70):
-    return '\n'.join(long_string[i:i+line_len] for i in range(0, len(long_string), line_len))
+    return '\n'.join(long_string[i : i + line_len] for i in range(0, len(long_string), line_len))
 
 
 def possible_router_ips():
@@ -231,13 +249,14 @@ def possible_router_ips():
                         addr = a['addr'].split('%')[0]  # strip away '%' and interface name
                         prefix_len = bin(
                             int.from_bytes(
-                                ipaddress.ip_address(a['netmask']).packed,
-                                byteorder='big'
+                                ipaddress.ip_address(a['netmask']).packed, byteorder='big'
                             )
                         ).count('1')
                         subnet = ipaddress.ip_network(addr + '/' + str(prefix_len), strict=False)
-                        if (prefix_len < subnet.max_prefixlen  # not a /32 (IPv4) address
-                                and not ipaddress.ip_address(addr).is_link_local):
+                        if (
+                            prefix_len < subnet.max_prefixlen  # not a /32 (IPv4) address
+                            and not ipaddress.ip_address(addr).is_link_local
+                        ):
                             first_ip = subnet[1]  # assume router is first IP in subnet
                             if not first_ip == ipaddress.ip_address(addr):  # if not our IP
                                 possible_routers.append(first_ip)
@@ -276,9 +295,9 @@ def new_nickname(mac=None):
                 mask = 24 if match[2] == None else int(re.sub(r'\D', '', match[2]))
                 assert (mask / 4).is_integer(), _("mask not multiple of 4: {}").format(line)
                 mask_div_4 = int(mask / 4)  # ¼ of address mask is the number of hex digits needed
-                line_digits = match[1].translate(
-                    {ord(c): None for c in [':', '-', '.', ' ']}
-                ).lower()
+                line_digits = (
+                    match[1].translate({ord(c): None for c in [':', '-', '.', ' ']}).lower()
+                )
                 if digits_of_mac[0:mask_div_4] == line_digits[0:mask_div_4]:
                     manuf = ' ' + match[3].rstrip()
             elif not comment_re.match(line):
@@ -336,9 +355,9 @@ class Router(yaml.YAMLObject):
         # with router_password via ssh.
         prompt = '[\r\n]root@'
         phase1 = {
-            '[Ll]]ogin:' : 'root\n',
-            '[Pp]assword:' : '\n',
-            prompt : None,  # None == we have arrived
+            '[Ll]]ogin:': 'root\n',
+            '[Pp]assword:': '\n',
+            prompt: None,  # None == we have arrived
         }
         # After a hard reset, some routers and firmware version listen for a telnet connection,
         # while others listen for an ssh connection with no authentication for 'root'. Try ssh
@@ -347,9 +366,7 @@ class Router(yaml.YAMLObject):
         tmp_client.set_missing_host_key_policy(paramiko.RejectPolicy)  # ensure correct host key
         hostkey = self.ssh_hostkey.split(' ')
         tmp_client.get_host_keys().add(
-            self.ip,
-            hostkey[0],
-            paramiko.RSAKey(data=base64.b64decode(hostkey[1]))
+            self.ip, hostkey[0], paramiko.RSAKey(data=base64.b64decode(hostkey[1]))
         )
         try:
             tmp_client.connect(
@@ -369,8 +386,8 @@ class Router(yaml.YAMLObject):
                 print_msg(1, 'Router cmd:    ' + to_send)
                 __, stdout, stderr = tmp_client.exec_command(to_send)
                 exitc = stdout.channel.recv_exit_status()
-                print_msg(1, 'Router stdout: '.join(['']+list(stdout)), end='')
-                print_msg(1, 'Router stderr: '.join(['']+list(stderr)), end='')
+                print_msg(1, 'Router stdout: '.join([''] + list(stdout)), end='')
+                print_msg(1, 'Router stderr: '.join([''] + list(stderr)), end='')
                 if exitc != 0:
                     tmp_client.close()
                     raise RemoteExecutionError(to_send)
@@ -397,7 +414,7 @@ class Router(yaml.YAMLObject):
                     raise CGError(_("Unable to log in to {}").format(self.nickname))
                 for to_send in phase2.splitlines():  # phase 2 - commands to send router
                     try:
-                        t.write((to_send+'\n').encode())
+                        t.write((to_send + '\n').encode())
                         (__, __, data) = t.expect([re.compile(prompt.encode())], timeout=3)
                     except EOFError:
                         pass
@@ -407,8 +424,10 @@ class Router(yaml.YAMLObject):
             # The 'official' instructions to reset: Press and hold the "Reset" button for
             # 10 seconds, then release your finger. You will see LEDs flash in a
             # pattern. Wait for the router to reboot and then start over.
-            raise CGError(_("Unable to connect to {} at {}. ").format(self.nickname, self.ip)
-                    + _("Please factory-reset your router and try again."))
+            raise CGError(
+                _("Unable to connect to {} at {}. ").format(self.nickname, self.ip)
+                + _("Please factory-reset your router and try again.")
+            )
         finally:
             print_msg(1, "</telnet_log>")
 
@@ -423,9 +442,7 @@ class Router(yaml.YAMLObject):
         except AttributeError:
             raise CGError(_("Router has not yet been configured for ssh."))
         self.client.get_host_keys().add(
-            self.ip,
-            hostkey[0],
-            paramiko.RSAKey(data=base64.b64decode(hostkey[1]))
+            self.ip, hostkey[0], paramiko.RSAKey(data=base64.b64decode(hostkey[1]))
         )
         # Private key is normally in ~/.ssh/id_rsa
         privkey_file = io.StringIO()
@@ -461,8 +478,9 @@ class Router(yaml.YAMLObject):
             except paramiko.ssh_exception.AuthenticationException:
                 self.client = None
                 raise CGError(_("Unable to connect to {} at {}.").format(self.nickname, self.ip))
-        self.last_connect = (time.strftime("%Y-%m-%d_%H:%M:%S", time.gmtime()) 
-                + " {}".format(connect_method))
+        self.last_connect = time.strftime("%Y-%m-%d_%H:%M:%S", time.gmtime()) + " {}".format(
+            connect_method
+        )
         print_msg(1, _("Connected to {} via {}").format(self.nickname, connect_method))
 
     def exec(self, command, okay_to_fail=False):
@@ -510,7 +528,7 @@ class Config(yaml.YAMLObject):
 
     def __init__(self):
         self.routers = None
-    
+
     def set_defaults(self):
         self.routers = list()
         self.default_vpn_username = input(_("Enter the PIA username to use on routers: "))
@@ -518,8 +536,7 @@ class Config(yaml.YAMLObject):
         self.default_vpn_server_host = input(_("Enter the PIA region to use on routers: "))
 
 
-class ConfigSaver():
-
+class ConfigSaver:
     def long_str_representer(dumper, data):  # https://stackoverflow.com/a/33300001/10590519
         if len(data.splitlines()) > 1:  # check for multiline string
             return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
@@ -527,7 +544,7 @@ class ConfigSaver():
 
     def conf_dir():
         return os.path.expanduser('~/.cleargopher')
-    
+
     def _conf_path():
         return os.path.join(ConfigSaver.conf_dir(), 'cleapher.conf')
 
@@ -559,28 +576,30 @@ class ConfigSaver():
         # https://stackoverflow.com/a/52621703/10590519
         yaml.add_representer(
             dict,
-            lambda self, data: yaml.representer.SafeRepresenter.represent_dict(self, data.items())
+            lambda self, data: yaml.representer.SafeRepresenter.represent_dict(self, data.items()),
         )
         try:
-            header = (_("This is the Clear Gopher YAML configuration file. Be very careful ") 
-                    + _("when editing because indent, colons, and many other characters have ")
-                    + _("special meaning."))
+            header = (
+                _("This is the Clear Gopher YAML configuration file. Be very careful ")
+                + _("when editing because indent, colons, and many other characters have ")
+                + _("special meaning.")
+            )
             # The 'width' option below does not work as expected
             body = yaml.dump(config, default_flow_style=None, width=48)
-            with open(conf_path+'.0', 'w') as conf_file:
+            with open(conf_path + '.0', 'w') as conf_file:
                 # Restrict file permissions to protect passwords, keys from other users
-                os.chmod(conf_path+'.0', 0o600)
+                os.chmod(conf_path + '.0', 0o600)
                 conf_file.write('# ' + '\n# '.join(textwrap.wrap(header, width=66)) + '\n')
                 # Don't save routers.client
                 conf_file.write(re.sub(r'\n *client:[^\n]+\n', '\n', body))
         except OSError as err:
-            raise CGError(_("Error saving configuration {}: {}").format(conf_path+'.0', err))
+            raise CGError(_("Error saving configuration {}: {}").format(conf_path + '.0', err))
         try:
-            os.rename(conf_path, conf_path+'.bak')  # keep 1 old version
+            os.rename(conf_path, conf_path + '.bak')  # keep 1 old version
         except FileNotFoundError:
             pass
         try:
-            os.rename(conf_path+'.0', conf_path)
+            os.rename(conf_path + '.0', conf_path)
         except FileNotFoundError as err:
             raise CGError(_("Error saving configuration {}: {}").format(conf_path, err))
 
@@ -623,7 +642,7 @@ def network_hunt(conf, ssid):
     ip_list_full = [ipaddress.ip_address(r.ip) for r in conf.routers]  # IPs from config file
     ip_list_full += possible_router_ips()  # first IP of each detected network
     # Note ip_list_full will normally include 192.168.8.1
-    ip_list_no_dups = [i for n,i in enumerate(ip_list_full) if i not in ip_list_full[:n]]
+    ip_list_no_dups = [i for n, i in enumerate(ip_list_full) if i not in ip_list_full[:n]]
     mac_to_ip = dict()
     router_options = list()  # computed list of what could be a router
     for ip in ip_list_no_dups:  # for each IP that might be a router
@@ -638,8 +657,12 @@ def network_hunt(conf, ssid):
         if mac == '00:00:00:00:00:00':  # unreachable (no host at IP)
             continue
         if mac in mac_to_ip:  # duplicate MAC
-            print_msg(1, _("Using MAC {mac} on {ip1}, ignoring duplicate on {ip2}")
-                    .format(mac=mac, ip1=str(mac_to_ip[mac]), ip2=str(ip)))
+            print_msg(
+                1,
+                _("Using MAC {mac} on {ip1}, ignoring duplicate on {ip2}").format(
+                    mac=mac, ip1=str(mac_to_ip[mac]), ip2=str(ip)
+                ),
+            )
             continue
         mac_to_ip[mac] = ip
         found = False
@@ -677,7 +700,7 @@ def network_hunt(conf, ssid):
     return router
 
 
-class Coteries():
+class Coteries:
     """
     A coterie is a group of gophers, or in this context, a group of commands or a file
     which changes the state of the router. A coterie module is a YAML file which contains
@@ -769,11 +792,11 @@ class Coteries():
                 elif self.type == 'exploration':
                     router.connect_ssh()
                     for line in data_no_params.splitlines():
-                        router.exec(line, okay_to_fail = True)
+                        router.exec(line, okay_to_fail=True)
                 elif self.type == 'commands':
                     router.connect_ssh()
                     for line in data_no_params.splitlines():
-                        router.exec(line, okay_to_fail = False)
+                        router.exec(line, okay_to_fail=False)
                 elif self.type == 'file':
                     router.connect_ssh()
                     router.put(data_no_params.encode(), self.path)
@@ -801,9 +824,7 @@ class Coteries():
                     raise CGError(_("Error parsing {}: {}").format(f, yaml_err))
             try:
                 if module.module_type not in valid_module_types:
-                    raise CGError(
-                        _("Invalid module_type in {}: {}").format(f, module.module_type)
-                    )
+                    raise CGError(_("Invalid module_type in {}: {}").format(f, module.module_type))
                 if module.vpn_type not in valid_vpn_types:
                     raise CGError(_("Invalid vpn_type in {}: {}").format(f, module.vpn_type))
                 if not valid_display_name_re.match(module.display_name):
