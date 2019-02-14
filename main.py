@@ -268,10 +268,10 @@ def new_nickname(mac=None):
     '''
     if mac != None and mac != '00:00:00:00:00:00':
         digits_of_mac = mac.translate({ord(c): None for c in [':', '-', '.', ' ']}).lower()
-        r_line = re.compile(r'^\s*([0-9a-fA-F:\.-]+)(/[0-9]+)?\s+([^#]+)')
-        r_comment = re.compile(r'^\s*(#.*)?$')
+        line_re = re.compile(r'^\s*([0-9a-fA-F:\.-]+)(/[0-9]+)?\s+([^#]+)$')
+        comment_re = re.compile(r'^\s*(#.*)?$')
         for line in known_macs.split('\n'):
-            match = r_line.match(line)
+            match = line_re.match(line)
             if match:
                 mask = 24 if match[2] == None else int(re.sub(r'\D', '', match[2]))
                 assert (mask / 4).is_integer(), _("mask not multiple of 4: {}").format(line)
@@ -281,7 +281,7 @@ def new_nickname(mac=None):
                 ).lower()
                 if digits_of_mac[0:mask_div_4] == line_digits[0:mask_div_4]:
                     manuf = ' ' + match[3].rstrip()
-            elif not r_comment.match(line):
+            elif not comment_re.match(line):
                 raise CGError(_("Invalid OUI line: {}").format(line))
         return 'new' + manuf + ' device'
 
@@ -787,8 +787,8 @@ class Coteries():
         valid_module_types = {'vpn_provider', 'router_hardware'}
         valid_vpn_types = {'openvpn'}
         valid_types = {'commands', 'exploration', 'routerauth', 'file', 'factory_wifi'}
-        valid_id_re = re.compile(r'[a-zA-Z0-9\._-]+')
-        valid_display_name_re = re.compile(r'[^\t\r\n]+')
+        valid_id_re = re.compile(r'[a-zA-Z0-9\._-]+$')
+        valid_display_name_re = re.compile(r'[^\t\r\n]+$')
         self.modules = list()
         our_dir = os.path.dirname(Path(sys.argv[0]).resolve())
         coteries_dir = os.path.join(our_dir, 'coteries')
@@ -913,6 +913,7 @@ def main():
     elif args.command == 'internal-tests':
         coteries = Coteries.load()
         first = coteries.modules[1].coteries[0].data
+        assert new_nickname('b8:27:eb:12:34:56') == 'new Raspberry Pi device'
         print_msg(1, _("Internal tests successful"))
 
 

@@ -11,10 +11,10 @@ coteries:
   # From https://wikidevi.com/wiki/GL.iNet_GL-AR150 and https://wikidevi.com/wiki/GL.iNet_GL-AR300M
   # See also https://docs.gl-inet.com/en/2/setup/first-time_setup/
   data: |
-    # SSID regex              : password
-    GL-iNet-[0-9A-Fa-f]{3}    : goodlife
-    GL-AR150-[0-9A-Fa-f]{3}   : goodlife
-    GL-AR300M-[0-9A-Fa-f]{3}  : goodlife
+    # SSID regex                : password
+    ^GL-iNet-[0-9A-Fa-f]{3}$    : goodlife
+    ^GL-AR150-[0-9A-Fa-f]{3}$   : goodlife
+    ^GL-AR300M-[0-9A-Fa-f]{3}$  : goodlife
 - !Coterie
   id: routerauth
   delta: 0 1
