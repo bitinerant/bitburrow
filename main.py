@@ -235,7 +235,7 @@ def generate_ssh_key_pair():  # based on: https://stackoverflow.com/a/39126754/1
 
 
 def add_line_breaks(long_string, line_len=70):
-    return "\n".join(long_string[i: i + line_len] for i in range(0, len(long_string), line_len))
+    return "\n".join(long_string[i : i + line_len] for i in range(0, len(long_string), line_len))
 
 
 def possible_router_ips():
