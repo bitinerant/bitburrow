@@ -86,7 +86,7 @@ args = parser.parse_args()
 
 
 def wifi_active_ssids():
-    """Return a dict of MAC:SSID of currently-connected WiFi connections; note list may contain 
+    """Return a dict of MAC:SSID of currently-connected WiFi connections; note list may contain
     MACs which were seen for the AP but not currently (or even ever) associated with"""
     macs_found = dict()
     for conn in NetworkManager.NetworkManager.ActiveConnections:
@@ -101,8 +101,8 @@ def wifi_active_ssids():
 
 
 def wifi_available_ssids():
-    """Initiate a new WiFi scan, wait for it to complete, and return a (possibly empty) 
-    dict of MAC:SSID of available WiFi networks; usually takes a few seconds; it is normal 
+    """Initiate a new WiFi scan, wait for it to complete, and return a (possibly empty)
+    dict of MAC:SSID of available WiFi networks; usually takes a few seconds; it is normal
     to have multiple MACs with the same SSID"""
     # Based on: https://github.com/seveas/python-networkmanager/blob/master/examples/ssids.py
     macs_found = dict()
@@ -125,7 +125,7 @@ def wifi_available_ssids():
                 time.sleep(0.1)
                 continue
             # A change in signal levels means WiFi scan has completed.
-            if sig_levels != None and new_sig_levels != sig_levels:
+            if sig_levels is not None and new_sig_levels != sig_levels:
                 print_msg(
                     2, _("WiFi scan delay {}, signal levels {}").format(delay, new_sig_levels)
                 )
@@ -156,7 +156,7 @@ def wifi_connect(target_ssid, password):
             if ssid == target_ssid:
                 conn_to_activate = c
                 break
-        if conn_to_activate != None:  # found - exit 'twice' loop
+        if conn_to_activate is not None:  # found - exit 'twice' loop
             break
         print_msg(2, _("Adding new NetworkManager connection {}").format(target_ssid))
         new_connection = {  # add a new connection
@@ -202,7 +202,7 @@ def hashed_md5_password(password, salt=None):  # https://stackoverflow.com/a/272
     """Return the Linux-format hashed password. The salt, if specified, must begin with
     '$' followed by an id as listed in the 'crypt' man page. If no salt is given, an MD5 salt
     is generaged for compatibility with older systems."""
-    if salt == None:
+    if salt is None:
         salt = crypt.mksalt(crypt.METHOD_MD5)  # begins '$1$', e.g. '$1$D6/56C4p'
     # The cli equivalent to crypt.crypt(): openssl passwd -1 -salt $PLAIN_SALT $PASSWORD
     return crypt.crypt(password, salt)
@@ -285,14 +285,14 @@ def new_nickname(mac=None):
         94:B8:6D              Intel
         9C:B6:D0              RivetNet
     '''
-    if mac != None and mac != '00:00:00:00:00:00':
+    if mac is not None and mac != '00:00:00:00:00:00':
         digits_of_mac = mac.translate({ord(c): None for c in [':', '-', '.', ' ']}).lower()
         line_re = re.compile(r'^\s*([0-9a-fA-F:\.-]+)(/[0-9]+)?\s+([^#]+)$')
         comment_re = re.compile(r'^\s*(#.*)?$')
         for line in known_macs.split('\n'):
             match = line_re.match(line)
             if match:
-                mask = 24 if match[2] == None else int(re.sub(r'\D', '', match[2]))
+                mask = 24 if match[2] is None else int(re.sub(r'\D', '', match[2]))
                 assert (mask / 4).is_integer(), _("mask not multiple of 4: {}").format(line)
                 mask_div_4 = int(mask / 4)  # ¼ of address mask is the number of hex digits needed
                 line_digits = (
@@ -305,7 +305,7 @@ def new_nickname(mac=None):
         return 'new' + manuf + ' device'
 
 
-class SSHClient_noauth(paramiko.SSHClient):
+class SSHClientNoAuth(paramiko.SSHClient):
     # The work-around below is because paramiko does not support the "auth_none"
     # option (SSH requiring no authentication at all). For more details, see
     # https://stackoverflow.com/a/32986895/10590519
@@ -323,7 +323,7 @@ class Router(yaml.YAMLObject):
     yaml_tag = '!Router'  # https://stackoverflow.com/a/2890073/10590519
 
     def __init__(self, ip, mac):
-        assert mac != None and mac != '00:00:00:00:00:00'
+        assert mac is not None and mac != '00:00:00:00:00:00'
         self.ip = str(ip)
         self.mac = mac
         self.nickname = new_nickname(mac)
@@ -362,7 +362,7 @@ class Router(yaml.YAMLObject):
         # After a hard reset, some routers and firmware version listen for a telnet connection,
         # while others listen for an ssh connection with no authentication for 'root'. Try ssh
         # with no authentication first.
-        tmp_client = SSHClient_noauth()
+        tmp_client = SSHClientNoAuth()
         tmp_client.set_missing_host_key_policy(paramiko.RejectPolicy)  # ensure correct host key
         hostkey = self.ssh_hostkey.split(' ')
         tmp_client.get_host_keys().add(
@@ -404,7 +404,7 @@ class Router(yaml.YAMLObject):
                     print_msg(1, ''.join(esc_seq_re.split(data.decode())), end='')
                     if index >= 0:
                         to_send = phase1[phase1_prompts[index].pattern.decode()]
-                        if to_send == None:
+                        if to_send is None:
                             break
                         t.write(to_send.encode())
                     else:
@@ -432,7 +432,7 @@ class Router(yaml.YAMLObject):
             print_msg(1, "</telnet_log>")
 
     def connect_ssh(self):
-        if self.client != None:
+        if self.client is not None:
             return
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.RejectPolicy)  # ensure correct host key
@@ -652,7 +652,7 @@ def network_hunt(conf, ssid):
             mac = getmac.get_mac_address(ip6=str(ip))
         else:
             raise TypeError("ip must be ipaddress")
-        if mac == None:  # unroutable IP
+        if mac is None:  # unroutable IP
             continue
         if mac == '00:00:00:00:00:00':  # unreachable (no host at IP)
             continue
@@ -842,7 +842,7 @@ class Coteries:
                     if c.id in ids:
                         raise CGError(_("Duplicate id in {}: {}").format(f, c.id))
                     ids.add(c.id)
-                except AttributeError as err:
+                except AttributeError:
                     raise CGError(_("Missing id for a coterie in {}").format(f))
                 try:
                     if int(c.delta.split(' ')[0]) >= int(c.delta.split(' ')[1]):
