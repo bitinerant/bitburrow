@@ -235,7 +235,7 @@ def generate_ssh_key_pair():  # based on: https://stackoverflow.com/a/39126754/1
 
 
 def add_line_breaks(long_string, line_len=70):
-    return "\n".join(long_string[i : i + line_len] for i in range(0, len(long_string), line_len))
+    return "\n".join(long_string[i: i + line_len] for i in range(0, len(long_string), line_len))
 
 
 def possible_router_ips():
@@ -537,17 +537,21 @@ class Config(yaml.YAMLObject):
 
 
 class ConfigSaver:
+    @staticmethod
     def long_str_representer(dumper, data):  # https://stackoverflow.com/a/33300001/10590519
         if len(data.splitlines()) > 1:  # check for multiline string
             return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
         return dumper.represent_scalar("tag:yaml.org,2002:str", data)
 
+    @staticmethod
     def conf_dir():
         return os.path.expanduser("~/.cleargopher")
 
+    @staticmethod
     def _conf_path():
         return os.path.join(ConfigSaver.conf_dir(), "cleapher.conf")
 
+    @staticmethod
     def load():
         config = Config()
         conf_path = ConfigSaver._conf_path()
@@ -559,12 +563,13 @@ class ConfigSaver:
                     raise CGError(_("Error parsing {}: {}").format(conf_path, yaml_err))
         except FileNotFoundError:  # missing config file
             pass
-        if config.routers == None:  # missing or empty config file - start fresh
+        if config.routers is None:  # missing or empty config file - start fresh
             config.set_defaults()
         for r in config.routers:
             r.client = None
         return config
 
+    @staticmethod
     def save(config):
         conf_path = ConfigSaver._conf_path()
         try:
@@ -933,7 +938,7 @@ def main():
         do_shell()
     elif args.command == "internal-tests":
         coteries = Coteries.load()
-        first = coteries.modules[1].coteries[0].data
+        first = coteries.modules[1].coteries[0].data  # noqa: F841
         assert new_nickname("b8:27:eb:12:34:56") == "new Raspberry Pi device"
         print_msg(1, _("Internal tests successful"))
 
