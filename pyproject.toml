@@ -1,7 +1,6 @@
 [tool.black]
 line-length = 99
 py36 = true
-skip-string-normalization = true
 exclude = '''
 /(
     \.eggs
