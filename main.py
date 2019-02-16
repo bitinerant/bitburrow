@@ -890,15 +890,13 @@ def do_router_set_up():
         factory_wifi = next((c.data for c in elected if c.type == "factory_wifi"), None)
         ssid, ssid_password = wifi_hunt(conf, factory_wifi)
         router = network_hunt(conf, ssid)
-    except:
+    except:  # noqa: E722
         ConfigSaver.save(conf)
         raise
     try:
         for c in elected:
             c.exec(router)
         print_msg(1, _("Set-up successful"))
-    except:
-        raise
     finally:
         router.close()  # docs emphasize importance of closing Paramiko client
         ConfigSaver.save(conf)
@@ -925,8 +923,6 @@ def do_shell():
                 print(router.exec(cmd).rstrip())
             except RemoteExecutionError as err:
                 print(err)
-    except:
-        raise
     finally:
         router.close()  # docs emphasize importance of closing Paramiko client
 
