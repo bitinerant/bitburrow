@@ -10,6 +10,8 @@ matrix:
           env: TOXENV=py37
         - python: "3.7"
           env: TOXENV=pep8
+        - python: "3.7"
+          env: TOXENV=fmt-check
 
 install:
   pip install tox
