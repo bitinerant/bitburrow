@@ -613,6 +613,28 @@ def wifi_hunt(conf, factory_wifi=""):
     return ssid, ssid_password
 
 
+def get_mac_address(address: Union[IPv4Address, IPv6Address]) -> Optional[str]:
+    if isinstance(address, IPv4Address):
+        mac = getmac.get_mac_address(ip=str(address))
+    elif isinstance(address, IPv6Address):
+        mac = getmac.get_mac_address(ip6=str(address))
+    else:
+        raise TypeError("address must be an ipaddress")
+    return mac
+
+
+def set_up_ssh(router: Router, conf: Config):
+    router.generate_passwords()
+    router.generate_ssh_keys()
+    router.vpn_username = conf.default_vpn_username
+    router.vpn_password = conf.default_vpn_password
+    router.vpn_server_host = conf.default_vpn_server_host
+    # If router also serves as AP, once we have connected to the router via ssh, this
+    # could be used instead of above line:
+    # router.ssid = router.exec('uci get wireless.@wifi-iface[0].ssid').rstrip()
+    conf.routers.append(router)
+
+
 def network_hunt(conf, ssid):
     """Scan local networks for router. Return existing or new Router() instance."""
     ip_list_full = [ipaddress.ip_address(r.ip) for r in conf.routers]  # IPs from config file
@@ -622,12 +644,7 @@ def network_hunt(conf, ssid):
     mac_to_ip = dict()
     router_options = list()  # computed list of what could be a router
     for ip in ip_list_no_dups:  # for each IP that might be a router
-        if isinstance(ip, ipaddress.IPv4Address):
-            mac = getmac.get_mac_address(ip=str(ip))
-        elif isinstance(ip, ipaddress.IPv6Address):
-            mac = getmac.get_mac_address(ip6=str(ip))
-        else:
-            raise TypeError("ip must be ipaddress")
+        mac = get_mac_address(ip)
         if mac is None:  # unroutable IP
             continue
         if mac == "00:00:00:00:00:00":  # unreachable (no host at IP)
@@ -663,15 +680,7 @@ def network_hunt(conf, ssid):
     router = router_options[0]  # the chosen router
     router.ssid = ssid
     if not router.router_password:
-        router.generate_passwords()
-        router.generate_ssh_keys()
-        router.vpn_username = conf.default_vpn_username
-        router.vpn_password = conf.default_vpn_password
-        router.vpn_server_host = conf.default_vpn_server_host
-        # If router also serves as AP, once we have connected to the router via ssh, this
-        # could be used instead of above line:
-        # router.ssid = router.exec('uci get wireless.@wifi-iface[0].ssid').rstrip()
-        conf.routers.append(router)
+        set_up_ssh(router, conf)
     print_msg(1, _("Using router {} (ip {})").format(router.nickname, router.ip))
     return router
 
@@ -874,11 +883,21 @@ def do_router_set_up():
         ConfigSaver.save(conf)
 
 
-def do_shell(verbosity: int) -> None:
+def do_shell(verbosity: int, router_address: IPv4Address = None) -> None:
     """Execute shell commands on the router. This is mostly for testing and as example code."""
     conf = ConfigSaver.load()
-    ssid, ssid_password = wifi_hunt(conf)
-    router = network_hunt(conf, ssid)
+    if router_address is not None:
+        mac = get_mac_address(router_address)
+        if mac is None:
+            # TODO: Should the MAC be required just to connect to the router? Add dummy
+            #   MAC for now to support NAT'd VMs or other scenarios where the router is not on
+            #   the same subnet.
+            mac = "00:01:02:03:04:05"
+        router = Router(router_address, mac)
+        set_up_ssh(router, conf)
+    else:
+        ssid, ssid_password = wifi_hunt(conf)
+        router = network_hunt(conf, ssid)
     try:
         router.connect_ssh()
         if verbosity > 1:
@@ -898,11 +917,16 @@ def do_shell(verbosity: int) -> None:
                 print(err)
     finally:
         router.close()  # docs emphasize importance of closing Paramiko client
+        ConfigSaver.save(conf)
 
 
 def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=_("Configures a router as a VPN client"),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
     # Optional arguments
-    parser = argparse.ArgumentParser(description=_("Configures a router as a VPN client"))
     group_verbose = parser.add_mutually_exclusive_group()
     group_verbose.add_argument(
         "-v",
@@ -925,6 +949,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help=_("unattended mode (answer 'yes' to all questions)"),
     )
+    parser.add_argument(
+        "--router-address",
+        required=False,
+        type=IPv4Address,
+        help=_(
+            "IP address of the router, if known and already connected via WiFi or LAN, to skip "
+            "automatic scanning."
+        ),
+    )
+
     # Mandatory arguments
     parser.add_argument(
         "command",
@@ -932,6 +966,7 @@ def parse_args() -> argparse.Namespace:
         metavar="command",
         help=_("task to perform: set-up, update, or shell"),
     )
+
     # To get a real shell (in step 3 use 'router_password' from ~/.cleargopher/cleapher.conf):
     # ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa  # if prompted, don't overwrite existing key
     # ssh-keyscan 192.168.8.1 2>/dev/null |perl -pe 's|^[^ ]*|*|' >>~/.ssh/known_hosts
@@ -949,7 +984,7 @@ def main() -> None:
     if args.command == "set-up":
         do_router_set_up()
     elif args.command == "shell":
-        do_shell(args.verbose)
+        do_shell(args.verbose, args.router_address)
     elif args.command == "internal-tests":
         coteries = Coteries.load()
         first = coteries.modules[1].coteries[0].data  # noqa: F841
