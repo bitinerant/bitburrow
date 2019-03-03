@@ -777,6 +777,7 @@ class Coteries:
                 raise CGError(_("Failed to execute coterie {}: {}").format(self.id, err))
             router.version_map[self.id] = version_available  # we have now successfully upgraded
 
+    @staticmethod
     def load():
         """Load and validate coterie modules."""
         self = Coteries()
