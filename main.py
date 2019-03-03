@@ -16,7 +16,7 @@ import sys
 import telnetlib
 import textwrap
 import time
-from typing import Optional, Union
+from typing import Union
 import uuid
 
 from cryptography.hazmat.backends import default_backend as crypto_default_backend
