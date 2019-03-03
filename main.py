@@ -41,48 +41,16 @@ class RemoteExecutionError(Exception):
     pass
 
 
+# TODO: Use logging levels for this rather than a global int.
+verbose: int = None
+
+
 def print_msg(level, msg, end="\n"):
-    if args.verbose > level:
+    if verbose > level:
         if level == 0:
             print("{}".format(msg), file=sys.stderr, end=end)
         else:
             print("{}".format(msg), end=end)
-
-
-# Optional arguments
-parser = argparse.ArgumentParser(description=_("Configures a router as a VPN client"))
-group_verbose = parser.add_mutually_exclusive_group()
-group_verbose.add_argument(
-    "-v",
-    "--verbose",
-    action="count",
-    default=1,
-    help=_("increase output verbosity; can be used multiple times"),
-)
-group_verbose.add_argument(
-    "-q",
-    "--quiet",
-    action="store_const",
-    const=0,
-    dest="verbose",  # mapping: '-q'->0 / default->1 / '-v'->2 / '-vv'->3
-    help=_("silence error messages"),
-)
-parser.add_argument(
-    "-y", "--yes", action="store_true", help=_("unattended mode (answer 'yes' to all questions)")
-)
-# Mandatory arguments
-parser.add_argument(
-    "command",
-    choices=("set-up", "update", "shell", "internal-tests"),
-    metavar="command",
-    help=_("task to perform: set-up, update, or shell"),
-)
-# To get a real shell (in step 3 use 'router_password' from ~/.cleargopher/cleapher.conf):
-# ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa  # if prompted, don't overwrite existing key
-# ssh-keyscan 192.168.8.1 2>/dev/null |perl -pe 's|^[^ ]*|*|' >>~/.ssh/known_hosts
-# cat ~/.ssh/id_rsa.pub |ssh root@192.168.8.1 'cat - >>/etc/dropbear/authorized_keys'
-# ssh root@192.168.8.1  # no password needed from now on
-args = parser.parse_args()
 
 
 def wifi_active_ssids():
@@ -902,15 +870,16 @@ def do_router_set_up():
         ConfigSaver.save(conf)
 
 
-def do_shell():
+def do_shell(verbosity: int) -> None:
     """Execute shell commands on the router. This is mostly for testing and as example code."""
     conf = ConfigSaver.load()
     ssid, ssid_password = wifi_hunt(conf)
     router = network_hunt(conf, ssid)
     try:
         router.connect_ssh()
-        if args.verbose > 1:
-            args.verbose = 1  # reduce verbosity for shell processing
+        if verbosity > 1:
+            global verbose
+            verbose = 1  # reduce verbosity for shell processing
         cmd = ""
         while cmd != "exit":
             try:
@@ -927,11 +896,56 @@ def do_shell():
         router.close()  # docs emphasize importance of closing Paramiko client
 
 
-def main():
+def parse_args() -> argparse.Namespace:
+    # Optional arguments
+    parser = argparse.ArgumentParser(description=_("Configures a router as a VPN client"))
+    group_verbose = parser.add_mutually_exclusive_group()
+    group_verbose.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=1,
+        help=_("increase output verbosity; can be used multiple times"),
+    )
+    group_verbose.add_argument(
+        "-q",
+        "--quiet",
+        action="store_const",
+        const=0,
+        dest="verbose",  # mapping: '-q'->0 / default->1 / '-v'->2 / '-vv'->3
+        help=_("silence error messages"),
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help=_("unattended mode (answer 'yes' to all questions)"),
+    )
+    # Mandatory arguments
+    parser.add_argument(
+        "command",
+        choices=("set-up", "update", "shell", "internal-tests"),
+        metavar="command",
+        help=_("task to perform: set-up, update, or shell"),
+    )
+    # To get a real shell (in step 3 use 'router_password' from ~/.cleargopher/cleapher.conf):
+    # ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa  # if prompted, don't overwrite existing key
+    # ssh-keyscan 192.168.8.1 2>/dev/null |perl -pe 's|^[^ ]*|*|' >>~/.ssh/known_hosts
+    # cat ~/.ssh/id_rsa.pub |ssh root@192.168.8.1 'cat - >>/etc/dropbear/authorized_keys'
+    # ssh root@192.168.8.1  # no password needed from now on
+    return parser.parse_args()
+
+
+def main() -> None:
+    global verbose
+
+    args = parse_args()
+    verbose = args.verbose
+
     if args.command == "set-up":
         do_router_set_up()
     elif args.command == "shell":
-        do_shell()
+        do_shell(args.verbose)
     elif args.command == "internal-tests":
         coteries = Coteries.load()
         first = coteries.modules[1].coteries[0].data  # noqa: F841
