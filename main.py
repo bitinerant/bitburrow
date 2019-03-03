@@ -6,6 +6,7 @@ import crypt
 from hashlib import sha256
 import io
 import ipaddress
+from ipaddress import IPv4Address, IPv6Address
 import os
 from pathlib import Path
 import re
@@ -15,6 +16,7 @@ import sys
 import telnetlib
 import textwrap
 import time
+from typing import Optional, Union
 import uuid
 
 from cryptography.hazmat.backends import default_backend as crypto_default_backend
@@ -29,7 +31,8 @@ from scp import SCPClient
 import yaml
 
 
-def _(s):  # for future localization, mark all strings to be translated with _("string")
+def _(s: str) -> str:
+    """For future localization, mark all strings to be translated with _("string")"""
     return s
 
 
@@ -290,7 +293,7 @@ class Router(yaml.YAMLObject):
     yaml_loader = yaml.SafeLoader
     yaml_tag = "!Router"  # https://stackoverflow.com/a/2890073/10590519
 
-    def __init__(self, ip, mac):
+    def __init__(self, ip: Union[IPv4Address, IPv6Address], mac: str) -> None:
         assert mac is not None and mac != "00:00:00:00:00:00"
         self.ip = str(ip)
         self.mac = mac
@@ -520,7 +523,7 @@ class ConfigSaver:
         return os.path.join(ConfigSaver.conf_dir(), "cleapher.conf")
 
     @staticmethod
-    def load():
+    def load() -> Config:
         config = Config()
         conf_path = ConfigSaver._conf_path()
         try:
@@ -538,7 +541,7 @@ class ConfigSaver:
         return config
 
     @staticmethod
-    def save(config):
+    def save(config: Config) -> None:
         conf_path = ConfigSaver._conf_path()
         try:
             os.mkdir(ConfigSaver.conf_dir())
