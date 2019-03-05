@@ -135,7 +135,8 @@ coteries:
   type: commands
   data: |
     if ! ( [ -f /tmp/opkg-lists/packages ] || [ -f /tmp/opkg-lists/*_packages ] ) ; then opkg update; fi
-    opkg install kmod-ipt-filter iptables-mod-filter  # for iptables --match string
+    opkg install kmod-ipt-filter  # for iptables --match string
+    opkg install iptables-mod-filter  # as above; installing in separate cmd is more reliable
 - !Coterie
   id: dns
   delta: 0 1
@@ -146,9 +147,11 @@ coteries:
     uci add_list dhcp.@dnsmasq[-1].server='9.9.9.9'
     uci add_list dhcp.@dnsmasq[-1].server='149.112.112.112'
     uci add_list dhcp.@dnsmasq[-1].noresolv=1
-    uci set network.wan.peerdns=0
+    uci set network.wan.peerdns=0  # disable ISP's DNS
     uci set network.wan.custom_dns=1
-    uci set network.wan.dns='9.9.9.9 149.112.112.112'
+    uci set network.wan.dns=
+    uci add_list network.wan.dns='9.9.9.9'
+    uci add_list network.wan.dns='149.112.112.112'
     uci set glconfig.general.force_dns=yes
     uci commit
 - !Coterie
