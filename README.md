@@ -1,14 +1,18 @@
-# Clear Gopher
+# BitBurrow
 
 [![Travis Build Status][travis-build-status-svg]][travis-build-status] 
 [![Code Style][black-code-style-svg]][black-code-style]
 
 A safe internet tunnel for the whole home that anyone can set up.
 
-The goal of the Clear Gopher project is to make it really easy for non-technical people to set up
+The goal of the BitBurrow project is to make it really easy for non-technical people to set up
 a secure VPN for their whole home. We hope to eventually automate most of these steps.
 
 For these instructions, you will need a computer with Ubuntu Linux installed.
+
+## Development Status
+
+This software is not yet ready for general use.
 
 ## Install Instructions
 
@@ -21,8 +25,8 @@ For these instructions, you will need a computer with Ubuntu Linux installed.
 	  [GL-iNet](https://www.gl-inet.com/ar300m/), and elsewhere.
 * **USB charger**:  5V/1A
 	* Most smartphone chargers should work.
-	* Specific models available at Amazon include [HomeSpot](https://amzn.com/B073VLTFQV), 
-	  [Jahmai](https://amzn.com/B06XGCZ18T), and [Urophylla](https://amzn.com/B072XK4DP5).
+	* Specific models available at Amazon include [HomeSpot](https://amzn.com/B073VLTFQV),
+	  and [Urophylla](https://amzn.com/B072XK4DP5).
 	* A micro-USB power cable is included with the GL-AR300M.
 * **Ethernet cable**:  10cm or longer
 	* Most Ethernet cables should work.
@@ -72,8 +76,8 @@ For these instructions, you will need a computer with Ubuntu Linux installed.
 * Clone this project
     
     ```bash
-    $ git clone https://github.com/bitinerant/cleargopher.git
-    $ cd cleargopher
+    $ git clone https://github.com/bitinerant/bitburrow.git
+    $ cd bitburrow
     ```
 
 * Install required host dependencies.
@@ -111,7 +115,7 @@ For these instructions, you will need a computer with Ubuntu Linux installed.
 ### 7. Test
 * Wait for the router to reboot.
 * Reconnect the WiFi to the VPN router. The password should be saved in Network Manager. 
-  (It is also in ``~/.cleargopher/cleapher.conf``.)
+  (It is also in ``~/.bitburrow/cleapher.conf``.)
 * From the client computer, test a few websites and download a large file (30 seconds or more).
 * Test that your IP is from PIA (e.g. banner at top of PIA home page should say, "You are 
   protected by PIA")
