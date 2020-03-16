@@ -1,0 +1,194 @@
+---
+# WireGuard for OpenWrt; based initially on https://openwrt.org/docs/guide-user/services/vpn/wireguard/client
+- name: Set facts
+  set_fact:
+    relays_path: "{{ role_path }}/files/relays.json"
+    relays_update_days: 2
+
+- name: Install Wireguard
+  opkg:
+    name: wireguard
+    state: present
+  notify:
+  - restart network
+  - restart firewall
+
+- name: Check relays.json (Mullvad endpoint list)
+  stat:
+    path: "{{ relays_path }}"
+    get_checksum: no
+    get_mime: no
+  delegate_to: localhost
+  register: relays_file
+
+- name: Compute file age of relays.json
+  set_fact:
+    # age is since 1970 if file is missing
+    relays_age: "{{ (lookup('pipe','date +%s') | int - relays_file.stat.mtime | default(0)) | int }}"
+  delegate_to: localhost
+
+- name: Download relays.json
+  uri:
+    # API from https://github.com/mullvad/mullvadvpn-app/blob/master/update-relays.sh
+    url: https://api.mullvad.net/rpc/
+    method: POST
+    body_format: json
+    body: '{"jsonrpc": "2.0", "id": "0", "method": "relay_list_v3"}'
+    dest: "{{ relays_path }}"
+  #when: (relays_age > (relays_update_days * 24 * 60 * 60))  # broken; no idea why
+  when: ((relays_age | int) > (relays_update_days * 24 * 60 * 60))
+  delegate_to: localhost
+
+# uci documentation:
+# - https://github.com/gekmihesg/ansible-openwrt/blob/master/library/uci.py
+# - https://wiki.teltonika-networks.com/view/UCI_command_usage
+# - https://github.com/gekmihesg/ansible-openwrt/issues/6
+
+- name: Configure firewall
+  # consider VPN network as public and assign VPN interface to WAN zone to minimize firewall setup
+  # note this means ports 22, 80 are closed inbound from the VPN
+  uci:
+    command: add_list
+    key: "firewall.@zone[1].network"  # wan
+    value: "{{ wg_if }}"
+    unique: True
+  notify:
+  - uci commit
+  - restart firewall
+
+- name: Configure network 1
+  uci:
+    command: section
+    config: network
+    name: "{{ wg_if }}"
+    type: interface
+    value:
+      proto: wireguard
+      addresses:
+      - "{{ wg_ip4 }}/{{ wg_netmask4 }}"
+      #- "{{ wg_ip6 }}/{{ wg_netmask6 }}"
+      private_key: "{{ client_prvkey }}"
+  notify:
+  - uci commit
+  - restart network
+
+- name: Configure network 2
+  uci:
+    command: section
+    config: network
+    name: wgserver
+    type: wireguard_{{ wg_if }}
+    value:
+      public_key: "{{ endpoint_pubkey }}"
+      preshared_key: "{{ endpoint_psk }}"
+      endpoint_host: "{{ endpoint_host }}"
+      endpoint_port: "{{ endpoint_port }}"
+      route_allowed_ips: "1"
+      persistent_keepalive: "25"
+      allowed_ips:
+      - "0.0.0.0/1"
+      - "128.0.0.0/1"
+      - "::/0"
+  notify:
+  - uci commit
+  - restart network
+
+- name: Route DNS over VPN
+  uci:
+    command: set
+    key: "dhcp.@dnsmasq[0]"
+    value:
+      server:
+      - 9.9.9.9
+      - 149.112.112.112
+      noresolv: 1
+  notify:
+  - uci commit
+  - restart network
+
+- name: Fix DNS leaks
+  uci:
+    command: set
+    key: network.wan
+    value:
+      peerdns: 0  # disable ISP's DNS
+      custom_dns: 1
+      dns: 
+      - 9.9.9.9
+      - 149.112.112.112
+  notify:
+  - uci commit
+  - restart network
+
+- name: Force DNS
+  uci:
+    command: set
+    key: glconfig.general
+    value:
+      force_dns: "yes"
+  notify:
+  - uci commit
+  - restart network
+
+- name: Script to correct system clock before WireGuard connects
+  copy:
+    content: |
+      #!/bin/sh
+      # WireGuard needs to know the correct time to connect with peer, and route blocks dns and ntpd
+      PATH=/usr/sbin:/usr/bin:/sbin:/bin
+      while true; do
+        for NTP in $(uci get system.ntp.server); do  # try each NTP server
+          DEFAULT_ROUTE_DEV=$(ip route |grep ^default |cut -d' ' -f3,4,5)  # refresh in case of new default route
+          for DNS_SERVER in 141.1.1.1 4.2.2.2 208.67.220.222; do  # 3 DNS servers *not* in `uci get network.wan.dns`
+            ip route add $DNS_SERVER/32 via $DEFAULT_ROUTE_DEV  # allow single IP without VPN
+            NTP_IP=$(nslookup $NTP $DNS_SERVER |grep '^Address 1:' |grep -Eo '[0-9\.]{7,}')
+            ip route del $DNS_SERVER/32 via $DEFAULT_ROUTE_DEV  # remove temporary route
+            if ! [ -z $NTP_IP ]; then  # try to set clock only if NTP server IP is valid
+              ip route add $NTP_IP/32 via $DEFAULT_ROUTE_DEV  # allow single IP without VPN
+              echo ==== DNS_SERVER $DNS_SERVER == NTP $NTP == NTP_IP $NTP_IP ====
+              ntpd -d -n -q -p $NTP_IP
+              ip route del $NTP_IP/32 via $DEFAULT_ROUTE_DEV  # remove temporary route
+              sleep 4
+            else
+              echo IP lookup for $NTP failed on DNS server $DNS_SERVER
+              sleep 1
+            fi
+            if [ $(wg show {{ wg_if }} transfer |cut -f2) -ge 10 ]; then exit; fi  # quit if WireGuard receives data
+          done  # for DNS_SERVERS
+        done  # for NTP
+      done  # while
+    dest: /bin/fixclock4wg
+    mode: '0755'
+
+## Using cron "@reboot" didn't seem to work
+#- name: Check if crontab needs to be updated
+#  shell:
+#    cmd: crontab -l |grep /bin/fixclock4wg
+#  register: crontab_grep
+#  changed_when: False  # does not change anything
+#
+#- name: Update crontab to run script at boot
+#  shell:
+#    cmd: (crontab -l 2>/dev/null; echo '@reboot   /bin/fixclock4wg') |crontab -
+#  when: crontab_grep.rc != 0
+
+- name: Start fixclock4wg at boot 1
+  copy:
+    content: |
+      #!/bin/sh /etc/rc.common
+      USE_PROCD=1
+      START=99
+      STOP=01
+      start_service() {
+          procd_open_instance
+          procd_set_param command /bin/sh "/bin/fixclock4wg"
+          procd_close_instance
+      }
+    dest: /etc/init.d/fixclock4wg
+    mode: '0755'
+
+- name: Start fixclock4wg at boot 2
+  command:
+    cmd: /etc/init.d/fixclock4wg enable
+    creates: /etc/rc.d/S99fixclock4wg
+

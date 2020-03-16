@@ -1,0 +1,12 @@
+---
+- name: Configure mini cloud servers
+  hosts: all
+  remote_user: root
+  tasks:
+  - include_role:
+      name: ansible_openwrt
+  - include_role:
+      name: setup
+  - include_role:
+      name: wireguard_client
+    when: "['wireguard_client'] is subset(host_tags)"

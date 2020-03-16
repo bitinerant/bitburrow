@@ -1,0 +1,110 @@
+---
+- name: Get current root password salt
+  shell:
+    cmd: 'grep ^root: /etc/shadow |grep -o "\$1\$[^ \$:]*"'
+  changed_when: False
+  ignore_errors: True
+  register: existing_salt
+
+- name: Generate new salt and password hash
+  set_fact:
+    # https://docs.ansible.com/ansible/latest/reference_appendices/faq.html#how-do-i-generate-encrypted-passwords-for-the-user-module
+    root_shadow_line: 'root:{{ root_password | password_hash("md5") }}:18000:0:99999:7:::'
+  when: "'$1$' not in existing_salt.stdout"
+
+- name: Generate new password hash with existing salt
+  # use existing salt and fixed tail so that 'setting' the same password is idempotent
+  # not sure why "^\$1\$" does not work; work-around is "^\$\d\$" 
+  # to test password login: ssh -o PubkeyAuthentication=no root@192.168.8.1
+  set_fact:
+    root_shadow_line: 'root:{{ root_password | password_hash("md5", existing_salt.stdout | regex_replace("^\$\d\$", "")) }}:18000:0:99999:7:::'
+  when: "'$1$' in existing_salt.stdout"
+
+- name: Hash web GUI password
+  set_fact:
+    webgui_password_hash: '{{ webgui_password | hash("sha256") }}'
+
+# uci documentation:
+# - https://github.com/gekmihesg/ansible-openwrt/blob/master/library/uci.py
+# - https://wiki.teltonika-networks.com/view/UCI_command_usage
+# - https://github.com/gekmihesg/ansible-openwrt/issues/6
+
+- name: Verify MAC; don't continue if this is the wrong router
+  fail: msg="The MAC address {{ verify_mac }} was not found on this device. Check your connection."
+  when: ansible_facts is not search(verify_mac)
+
+- name: Configure language 1
+  uci:
+    command: set
+    key: glconfig.general.language
+    value: "{{ language }}"
+  notify: uci commit
+
+- name: Configure language 2
+  uci:
+    command: set
+    key: luci.main.lang
+    value: "{{ language }}"
+  notify: uci commit
+
+- name: Configure time zone 1
+  uci:
+    command: set
+    key: "system.@system[0].zonename"
+    value: "UTC"
+  notify: uci commit
+
+- name: Configure time zone 2
+  uci:
+    command: set
+    key: "system.@system[0].timezone"
+    value: "GMT0"
+  notify: uci commit
+
+- name: Probe for WiFi radios
+  shell:
+    # GL-AR750: wireless.default_radio0 (5 GHz) and wireless.default_radio1 (2.4 GHz)
+    # GL-AR300M: wireless.@wifi-iface[0]
+    cmd: 'uci show wireless |grep "\.ssid" |grep -o -e "wireless.default_radio." -e "wireless.@wifi-iface\[.\]"'
+  changed_when: False
+  register: wifi_radios
+
+- name: Configure WiFi name
+  uci:
+    command: set
+    key: "{{ item }}.ssid"
+    value: "{{ wifi_ssid }}"
+  loop: "{{ wifi_radios.stdout_lines }}"
+  notify:
+  - uci commit
+  - restart network
+
+- name: Configure WiFi password
+  uci:
+    command: set
+    key: "{{ item }}.key"
+    value: "{{ wifi_password }}"
+  loop: "{{ wifi_radios.stdout_lines }}"
+  notify:
+  - uci commit
+  - restart network
+
+- name: Configure router password
+  lineinfile:
+    line: "{{ root_shadow_line }}"
+    path: /etc/shadow
+    regexp: '^root:.*'
+
+- name: Configure authorized_keys
+  copy:
+    content: "{{ root_authorized_keys }}"
+    dest: /etc/dropbear/authorized_keys
+    mode: '0644'
+
+- name: Configure web GUI password
+  uci:
+    command: set
+    key: glconfig.general.password
+    value: "{{ webgui_password_hash }}"
+  notify: uci commit
+

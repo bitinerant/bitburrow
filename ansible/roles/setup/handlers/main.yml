@@ -1,0 +1,24 @@
+---
+- name: uci commit
+  uci:
+    command: commit
+
+- name: restart network
+  command:
+    cmd: /etc/init.d/network restart
+
+- name: restart firewall
+  command:
+    cmd: /etc/init.d/firewall restart
+
+- name: reboot stage 1
+  command:
+    cmd: reboot
+  listen: reboot
+
+- name: reboot stage 2
+  wait_for_connection:
+    timeout: 300
+    delay: 60
+  listen: reboot
+
