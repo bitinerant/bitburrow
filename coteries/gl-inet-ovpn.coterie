@@ -15,6 +15,7 @@ coteries:
     ^GL-iNet-[0-9A-Fa-f]{3}$    : goodlife
     ^GL-AR150-[0-9A-Fa-f]{3}$   : goodlife
     ^GL-AR300M-[0-9A-Fa-f]{3}$  : goodlife
+    ^GL-AR300M-[0-9A-Fa-f]{3}-NOR$  : goodlife
 - !Coterie
   id: routerauth
   delta: 0 1

@@ -954,6 +954,7 @@ def main() -> None:
         coteries = Coteries.load()
         first = coteries.modules[1].coteries[0].data  # noqa: F841
         assert new_nickname("b8:27:eb:12:34:56") == "new Raspberry Pi device"
+        verbose = 2
         print_msg(1, _("Internal tests successful"))
 
 
