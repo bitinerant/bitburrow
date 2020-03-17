@@ -1,0 +1,42 @@
+Traceback (most recent call last):
+  File "main.py", line 69, in main
+    app.run()
+  File "/home/lor/docs/code/bitburrow/gui/libs/applibs/kivy/app.py", line 855, in run
+    runTouchApp()
+  File "/home/lor/docs/code/bitburrow/gui/libs/applibs/kivy/base.py", line 504, in runTouchApp
+    EventLoop.window.mainloop()
+  File "/home/lor/docs/code/bitburrow/gui/libs/applibs/kivy/core/window/window_sdl2.py", line 747, in mainloop
+    self._mainloop()
+  File "/home/lor/docs/code/bitburrow/gui/libs/applibs/kivy/core/window/window_sdl2.py", line 479, in _mainloop
+    EventLoop.idle()
+  File "/home/lor/docs/code/bitburrow/gui/libs/applibs/kivy/base.py", line 339, in idle
+    Clock.tick()
+  File "/home/lor/docs/code/bitburrow/gui/libs/applibs/kivy/clock.py", line 591, in tick
+    self._process_events()
+  File "kivy/_clock.pyx", line 384, in kivy._clock.CyClockBase._process_events
+  File "kivy/_clock.pyx", line 414, in kivy._clock.CyClockBase._process_events
+  File "kivy/_clock.pyx", line 412, in kivy._clock.CyClockBase._process_events
+  File "kivy/_clock.pyx", line 167, in kivy._clock.ClockEvent.tick
+  File "/home/lor/docs/code/bitburrow/gui/libs/applibs/kivy/uix/scrollview.py", line 1172, in _do_touch_up
+    super(ScrollView, self).on_touch_up(touch)
+  File "/home/lor/docs/code/bitburrow/gui/libs/applibs/kivy/uix/widget.py", line 571, in on_touch_up
+    if child.dispatch('on_touch_up', touch):
+  File "kivy/_event.pyx", line 707, in kivy._event.EventDispatcher.dispatch
+  File "/home/lor/docs/code/bitburrow/gui/libs/applibs/kivy/uix/widget.py", line 571, in on_touch_up
+    if child.dispatch('on_touch_up', touch):
+  File "kivy/_event.pyx", line 707, in kivy._event.EventDispatcher.dispatch
+  File "/home/lor/docs/code/bitburrow/gui/libs/applibs/kivymd/uix/list.py", line 776, in on_touch_up
+    super().on_touch_up(touch)
+  File "/home/lor/docs/code/bitburrow/gui/libs/applibs/kivymd/uix/behaviors/ripplebehavior.py", line 245, in on_touch_up
+    return super().on_touch_up(touch)
+  File "/home/lor/docs/code/bitburrow/gui/libs/applibs/kivy/uix/behaviors/button.py", line 179, in on_touch_up
+    self.dispatch('on_release')
+  File "kivy/_event.pyx", line 703, in kivy._event.EventDispatcher.dispatch
+  File "kivy/_event.pyx", line 1214, in kivy._event.EventObservers.dispatch
+  File "kivy/_event.pyx", line 1098, in kivy._event.EventObservers._dispatch
+  File "/home/lor/docs/code/bitburrow/gui/libs/applibs/kivy/lang/builder.py", line 64, in custom_callback
+    exec(__kvlang__.co_value, idmap)
+  File "<string>", line 51, in <module>
+  File "/home/lor/docs/code/bitburrow/gui/bitburrow.py", line 144, in show_license
+    os.path.join(self.directory, 'LICENSE'), encoding='utf-8').read()
+FileNotFoundError: [Errno 2] No such file or directory: '/home/lor/docs/code/bitburrow/gui/LICENSE'
