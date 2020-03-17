@@ -14,10 +14,6 @@ import os
 import sys
 from ast import literal_eval
 
-import os
-import sys
-from ast import literal_eval
-
 from kivy.lang import Builder
 from kivy.core.window import Window
 from kivy.config import ConfigParser
@@ -33,12 +29,14 @@ from libs.uix.lists import Lists
 
 from kivymd.app import MDApp
 from kivymd.toast import toast
+from kivymd.uix.list import TwoLineAvatarIconListItem, ImageLeftWidget
+from kivymd.uix.card import MDCard, MDSeparator
+from kivymd.uix.label import MDLabel
 
 from dialogs import card
 
-
 class bitburrow(MDApp):
-    title = 'bitburrow'
+    title = 'BitBurrow'
     icon = 'icon.png'
     nav_drawer = ObjectProperty()
     lang = StringProperty('en')
@@ -48,7 +46,7 @@ class bitburrow(MDApp):
         Window.bind(on_keyboard=self.events_program)
         Window.soft_input_mode = 'below_target'
 
-        self.list_previous_screens = ['base']
+        self.list_previous_screens = ['base_screen']
         self.window = Window
         self.config = ConfigParser()
         self.manager = None
@@ -81,12 +79,37 @@ class bitburrow(MDApp):
         self.manager = self.screen.ids.manager
         self.nav_drawer = self.screen.ids.nav_drawer
 
+        self.new_router("Jason's home router", "GL-AR300M16-ext", "icons/gl-inet-gl-ar300m.jpg")
+        self.new_router("SamD", "GL-AR750", "icons/gl-ar750.jpg")
+        self.new_router("office, room 311", "GL-AR150-676", "icons/gl-ar150.jpg")
+        self.new_router("Trance", "GL-AR750", "icons/gl-ar750.jpg")
+        self.new_router("Taco Bell #10088", "GL-AR150-676", "icons/gl-ar150.jpg")
+        self.new_router("unnamed", "GL-AR300M16-ext", "icons/gl-inet-gl-ar300m.jpg")
+        self.new_router("backup - kept in travel packpack", "GL-AR300M16-ext", "icons/gl-inet-gl-ar300m.jpg")
+
+        self.new_provider("PIA", "Private Internet Access", "")
+        self.new_provider("Mullvad", "Mullvad", "")
+
         return self.screen
+
+    def new_router(self, name, message, image_name):
+        router = TwoLineAvatarIconListItem(text=name, secondary_text=message)
+        router.add_widget(ImageLeftWidget(source=image_name))
+        self.screen.ids.base_screen.ids.routers_list.add_widget(router)
+
+    def new_provider(self, name, message, image_name):
+        #provider = MDCard(orientation="vertical", padding="8dp", size_hint=(.7, None), pos_hint={"center_x": .5, "center_y": 0}, size=("280dp", "180dp"))
+        provider = MDCard(orientation="vertical", padding="8dp", size_hint=(None, None), size=("280dp", "180dp"))
+        label = MDLabel(text=name, theme_text_color="Secondary", size_hint_y=1)
+        provider.add_widget(label)
+        provider.add_widget(MDSeparator(height="10dp"))
+        provider.add_widget(MDLabel(text=message))
+        self.screen.ids.base_screen.ids.accounts_list.add_widget(provider)
 
     def load_all_kv_files(self, directory_kv_files):
         for kv_file in os.listdir(directory_kv_files):
             kv_file = os.path.join(directory_kv_files, kv_file)
-            if os.path.isfile(kv_file):
+            if os.path.isfile(kv_file) and kv_file.endswith(".kv"):  # ignore temp files, etc.
                 if not PY2:
                     with open(kv_file, encoding='utf-8') as kv:
                         Builder.load_string(kv.read())
@@ -105,13 +128,14 @@ class bitburrow(MDApp):
 
     def back_screen(self, event=None):
         if event in (1001, 27):
-            if self.manager.current == 'base':
+            if self.manager.current == 'base_screen':
                 self.dialog_exit()
                 return
             try:
                 self.manager.current = self.list_previous_screens.pop()
+                self.manager.transition.direction = "right"
             except:
-                self.manager.current = 'base'
+                self.manager.current = 'base_screen'
             self.screen.ids.action_bar.title = self.title
             self.screen.ids.action_bar.left_action_items = \
                 [['menu', lambda x: self.nav_drawer.toggle_nav_drawer()]]
