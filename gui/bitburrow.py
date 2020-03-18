@@ -17,7 +17,6 @@ from ast import literal_eval
 from kivy.lang import Builder
 from kivy.core.window import Window
 from kivy.config import ConfigParser
-from kivy.logger import PY2
 from kivy.clock import Clock
 from kivy.utils import get_hex_from_color
 from kivy.properties import ObjectProperty, StringProperty
@@ -110,11 +109,8 @@ class bitburrow(MDApp):
         for kv_file in os.listdir(directory_kv_files):
             kv_file = os.path.join(directory_kv_files, kv_file)
             if os.path.isfile(kv_file) and kv_file.endswith(".kv"):  # ignore temp files, etc.
-                if not PY2:
-                    with open(kv_file, encoding='utf-8') as kv:
-                        Builder.load_string(kv.read())
-                else:
-                    Builder.load_file(kv_file)
+                with open(kv_file, encoding='utf-8') as kv:
+                    Builder.load_string(kv.read())
 
     def events_program(self, instance, keyboard, keycode, text, modifiers):
         if keyboard in (1001, 27):
@@ -162,14 +158,9 @@ class bitburrow(MDApp):
 
     def show_license(self, *args):
         self.nav_drawer.toggle_nav_drawer()
-        if not PY2:
-            self.screen.ids.license.ids.text_license.text = \
-                self.translation._('%s') % open(
-                    os.path.join(self.directory, 'LICENSE'), encoding='utf-8').read()
-        else:
-            self.screen.ids.license.ids.text_license.text = \
-                self.translation._('%s') % open(
-                    os.path.join(self.directory, 'LICENSE')).read()
+        self.screen.ids.license.ids.text_license.text = \
+            self.translation._('%s') % open(
+                os.path.join(self.directory, 'LICENSE'), encoding='utf-8').read()
         self.manager.current = 'license'
         self.screen.ids.action_bar.left_action_items = \
             [['chevron-left', lambda x: self.back_screen(27)]]
