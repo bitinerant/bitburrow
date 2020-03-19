@@ -31,8 +31,8 @@ from kivymd.toast import toast
 from kivymd.uix.list import TwoLineAvatarIconListItem, ImageLeftWidget
 from kivymd.uix.card import MDCard, MDSeparator
 from kivymd.uix.label import MDLabel
-
-from dialogs import card
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.modalview import ModalView
 
 class bitburrow(MDApp):
     title = 'BitBurrow'
@@ -167,6 +167,33 @@ class bitburrow(MDApp):
         self.screen.ids.action_bar.title = \
             self.translation._('MIT LICENSE')
 
+    def card(self, content, title=None, background_color=None, size=(0.7, 0.5)):
+        if not background_color:
+            background_color = [1.0, 1.0, 1.0, 1]
+
+        card = MDCard(size_hint=(1, 1), padding=5)  # , background_color=background_color)
+
+        if title:
+            box = BoxLayout(orientation="vertical", padding="8dp")
+            box.add_widget(
+                MDLabel(
+                    text=title,
+                    theme_text_color="Secondary",
+                    font_style="Title",
+                    size_hint_y=None,
+                    height="36dp",
+                )
+            )
+            box.add_widget(MDSeparator(height="1dp"))
+            box.add_widget(content)
+            card.add_widget(box)
+        else:
+            card.add_widget(content)
+
+        dialog = ModalView(size_hint=size, background_color=[0, 0, 0, 0.2])
+        dialog.add_widget(card)
+        return dialog
+
     def select_locale(self, *args):
         def select_locale(name_locale):
             for locale in self.dict_language.keys():
@@ -181,7 +208,7 @@ class bitburrow(MDApp):
                 ['locale', locale == self.lang]
 
         if not self.window_language:
-            self.window_language = card(
+            self.window_language = self.card(
                 Lists(
                     dict_items=dict_info_locales,
                     events_callback=select_locale, flag='one_select_check'
