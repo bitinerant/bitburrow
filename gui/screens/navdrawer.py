@@ -15,8 +15,7 @@ from kivy.lang import Builder
 
 Builder.load_string('''
 #:import os os
-#:import SingleIconItem libs.uix.lists.SingleIconItem
-
+#:import SingleIconItem libs.lists.SingleIconItem
 
 <LabelSection@Label>:
     markup: True
@@ -25,7 +24,6 @@ Builder.load_string('''
     color: 0, 0, 0, 1
     size_hint_y: None
     height: dp(45)
-
 
 <NavDrawer>:
     orientation: 'vertical'

@@ -14,18 +14,18 @@ from kivymd.uix.navigationdrawer import NavigationLayout
 from kivy.lang import Builder
 
 Builder.load_string('''
-#:import NavDrawer libs.uix.baseclass.navdrawer.NavDrawer
-#:import License libs.uix.baseclass.license.License
-#:import BaseScreen libs.uix.baseclass.basescreen.BaseScreen
-#:import GuideIntro libs.uix.baseclass.guide.GuideIntro
-#:import GuideVpnProvider libs.uix.baseclass.guide.GuideVpnProvider
-#:import GuideVpnCredentials libs.uix.baseclass.guide.GuideVpnCredentials
-#:import GuideVpnLocation libs.uix.baseclass.guide.GuideVpnLocation
-#:import GuideRouterName libs.uix.baseclass.guide.GuideRouterName
-#:import GuideConnectWiFi libs.uix.baseclass.guide.GuideConnectWiFi
-#:import GuideLogin libs.uix.baseclass.guide.GuideLogin
-#:import GuideConfigure libs.uix.baseclass.guide.GuideConfigure
-#:import About libs.uix.baseclass.about.About
+#:import NavDrawer screens.navdrawer.NavDrawer
+#:import License screens.license.License
+#:import BaseScreen screens.basescreen.BaseScreen
+#:import GuideIntro screens.guide.GuideIntro
+#:import GuideVpnProvider screens.guide.GuideVpnProvider
+#:import GuideVpnCredentials screens.guide.GuideVpnCredentials
+#:import GuideVpnLocation screens.guide.GuideVpnLocation
+#:import GuideRouterName screens.guide.GuideRouterName
+#:import GuideConnectWiFi screens.guide.GuideConnectWiFi
+#:import GuideLogin screens.guide.GuideLogin
+#:import GuideConfigure screens.guide.GuideConfigure
+#:import About screens.about.About
 
 <StartScreen>
 

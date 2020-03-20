@@ -22,8 +22,8 @@ from kivy.properties import ObjectProperty, StringProperty
 
 from main import __version__
 from libs.translation import Translation
-from libs.uix.baseclass.startscreen import StartScreen
-from libs.uix.lists import Lists
+from screens.startscreen import StartScreen
+from libs.lists import Lists
 
 from kivymd.app import MDApp
 from kivymd.toast import toast

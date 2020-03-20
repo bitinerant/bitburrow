@@ -14,7 +14,7 @@ from kivy.uix.screenmanager import Screen
 from kivy.lang import Builder
 
 Builder.load_string('''
-# #:import License libs.uix.baseclass.license.License
+# #:import License screens.license.License
 
 <License>:
     name: 'license'
