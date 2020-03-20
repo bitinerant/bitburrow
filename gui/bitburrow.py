@@ -14,7 +14,6 @@ import os
 import sys
 from ast import literal_eval
 
-from kivy.lang import Builder
 from kivy.core.window import Window
 from kivy.config import ConfigParser
 from kivy.clock import Clock
@@ -73,7 +72,6 @@ class bitburrow(MDApp):
 
     def build(self):
         self.set_value_from_config()
-        self.load_all_kv_files(os.path.join(self.directory, 'libs', 'uix', 'kv'))
         self.screen = StartScreen()
         self.manager = self.screen.ids.manager
         self.nav_drawer = self.screen.ids.nav_drawer
@@ -104,13 +102,6 @@ class bitburrow(MDApp):
         provider.add_widget(MDSeparator(height="10dp"))
         provider.add_widget(MDLabel(text=message))
         self.screen.ids.base_screen.ids.accounts_list.add_widget(provider)
-
-    def load_all_kv_files(self, directory_kv_files):
-        for kv_file in os.listdir(directory_kv_files):
-            kv_file = os.path.join(directory_kv_files, kv_file)
-            if os.path.isfile(kv_file) and kv_file.endswith(".kv"):  # ignore temp files, etc.
-                with open(kv_file, encoding='utf-8') as kv:
-                    Builder.load_string(kv.read())
 
     def events_program(self, instance, keyboard, keycode, text, modifiers):
         if keyboard in (1001, 27):
