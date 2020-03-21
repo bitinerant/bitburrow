@@ -1,14 +1,5 @@
 # -*- coding: utf-8 -*-
 #
-# This file created with KivyCreatorProject
-# <https://github.com/HeaTTheatR/KivyCreatorProgect
-#
-# Copyright (c) 2020 Ivanov Yuri and KivyMD
-#
-# For suggestions and questions:
-# <kivydevelopment@gmail.com>
-#
-# LICENSE: MIT
 
 from kivy.uix.screenmanager import Screen
 from kivy.lang import Builder
@@ -31,7 +22,7 @@ Builder.load_string('''
             halign: 'left'
             color: app.theme_cls.primary_color
             font_size: '18sp'
-            text: app.translation._('MIT LICENSE')
+            text: app.translation._('GPL v3.0 LICENSE')
 
         MDSeparator:
 

@@ -1,14 +1,5 @@
 # -*- coding: utf-8 -*-
 #
-# This file created with KivyCreatorProject
-# <https://github.com/HeaTTheatR/KivyCreatorProgect
-#
-# Copyright (c) 2020 Ivanov Yuri and KivyMD
-#
-# For suggestions and questions:
-# <kivydevelopment@gmail.com>
-#
-# LICENSE: MIT
 
 import os
 import sys
@@ -131,9 +122,9 @@ class bitburrow(MDApp):
         self.nav_drawer.toggle_nav_drawer()
         self.screen.ids.about.ids.label.text = \
             self.translation._(
-                u'[size=20][b]bitburrow[/b][/size]\n\n'
+                u'[size=20][b]BitBurrow[/b][/size]\n\n'
                 u'[b]Version:[/b] {version}\n'
-                u'[b]License:[/b] MIT\n\n'
+                u'[b]License:[/b] GPL v3.0\n\n'
                 u'[size=20][b]Developer[/b][/size]\n\n'
                 u'[ref=SITE_PROJECT]'
                 u'[color={link_color}]NAME_AUTHOR[/color][/ref]\n\n'
@@ -151,12 +142,12 @@ class bitburrow(MDApp):
         self.nav_drawer.toggle_nav_drawer()
         self.screen.ids.license.ids.text_license.text = \
             self.translation._('%s') % open(
-                os.path.join(self.directory, 'LICENSE'), encoding='utf-8').read()
+                os.path.join(self.directory, '..', 'LICENSE'), encoding='utf-8').read()
         self.manager.current = 'license'
         self.screen.ids.action_bar.left_action_items = \
             [['chevron-left', lambda x: self.back_screen(27)]]
         self.screen.ids.action_bar.title = \
-            self.translation._('MIT LICENSE')
+            self.translation._('License')
 
     def card(self, content, title=None, background_color=None, size=(0.7, 0.5)):
         if not background_color:
