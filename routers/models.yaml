@@ -1,0 +1,56 @@
+# This is a list of router models in YAML format. Be very careful
+# when editing because indent, colons, and many other characters
+# have special meaning.
+!Models
+routers:
+# the first entry documents fields
+- !Router
+  id: a unique ID
+  display_names: user-friendly list of models with the same SoC
+  model: model from `grep '^machine\s' /proc/cpuinfo`
+  wifi_pw: factory-default WiFi password
+  wifi_ssid: regex of factory-default SSID; see https://wikidevi.com/
+  image_src: URL from which router image was taken (check license); remove whitespace via `mogrify -trim ...`
+  mfg_page: URL of manufacturer's product information page
+  bb_status: works with BitBurrow - "supported" or, if not, a brief comment
+- !Router
+  id: GL-AR750
+  display_names: [GL-iNet AR750]
+  model: GL-AR750
+  wifi_pw: goodlife
+  wifi_ssid:
+  image_src: https://openwrt.org/_media/media/gl.inet/gl-ar750/ar750-3.jpg
+  mfg_page: https://www.gl-inet.com/products/gl-ar750/
+  bb_status: supported
+- !Router
+  id: GL-AR750S
+  display_names: [GL-iNet AR750S]
+  model: 
+  wifi_pw: goodlife
+  wifi_ssid:
+  image_src: https://openwrt.org/_media/media/gl.inet/ar750s-ext_1000x1000.jpg
+  mfg_page: https://www.gl-inet.com/products/gl-ar750s/
+  bb_status: not tested
+- !Router
+  id: GL-AR150
+  display_names:
+  - GL-iNet AR150
+  - GL-iNet AR150-Ext-2
+  - GL-iNet AR150 (POE)
+  - GL-iNet AR150-Ext-2 (POE)
+  model:
+  wifi_pw: goodlife
+  wifi_ssid: '^GL-iNet-[0-9A-Fa-f]{3}|GL-AR150-[0-9A-Fa-f]{3}$'
+  image_src: https://openwrt.org/_media/media/gl.inet/gl_ar150_case.jpg
+  mfg_page: https://www.gl-inet.com/products/gl-ar150/
+  bb_status: supported
+- !Router
+  id: GL-AR300M
+  display_names: [GL-iNet AR300M, GL-iNet AR300M-Ext]
+  model:
+  wifi_pw: goodlife
+  wifi_ssid: '^GL-iNet-[0-9A-Fa-f]{3}|GL-AR300M-[0-9A-Fa-f]{3}(-NOR)?$'
+  image_src: https://openwrt.org/_media/media/gl.inet/gl_ar300m.jpg
+  mfg_page: https://www.gl-inet.com/products/gl-ar300m/
+  bb_status: supported
+

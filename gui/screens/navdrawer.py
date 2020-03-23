@@ -37,7 +37,7 @@ Builder.load_string('''
             id: navigation_image
             size_hint: None, None
             size: dp((box_avatar.height * 30) // 100), dp((box_avatar.height * 30) // 100)
-            source: 'data/images/icon.png'
+            source: 'gui/data/images/icon.png'
 
         Widget:
 

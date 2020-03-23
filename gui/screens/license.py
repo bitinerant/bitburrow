@@ -27,7 +27,7 @@ Builder.load_string('''
         MDSeparator:
 
         Image:
-            source: 'data/images/open-source-logo.png'
+            source: 'gui/data/images/open-source-logo.png'
 
         ScrollView:
 

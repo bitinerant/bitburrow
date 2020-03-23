@@ -41,7 +41,6 @@ def main():
     app = None
 
     try:
-        os.chdir('gui')
         from bitburrow import bitburrow
         app = bitburrow()
         app.run()

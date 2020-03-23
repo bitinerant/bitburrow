@@ -67,13 +67,13 @@ class bitburrow(MDApp):
         self.manager = self.screen.ids.manager
         self.nav_drawer = self.screen.ids.nav_drawer
 
-        self.new_router("Jason's home router", "GL-AR300M16-ext", "icons/gl-inet-gl-ar300m.jpg")
-        self.new_router("SamD", "GL-AR750", "icons/gl-ar750.jpg")
-        self.new_router("office, room 311", "GL-AR150-676", "icons/gl-ar150.jpg")
-        self.new_router("Trance", "GL-AR750", "icons/gl-ar750.jpg")
-        self.new_router("Taco Bell #10088", "GL-AR150-676", "icons/gl-ar150.jpg")
-        self.new_router("unnamed", "GL-AR300M16-ext", "icons/gl-inet-gl-ar300m.jpg")
-        self.new_router("backup - kept in travel packpack", "GL-AR300M16-ext", "icons/gl-inet-gl-ar300m.jpg")
+        self.new_router("Jason's home router", "GL-AR300M16-ext", "routers/GL-AR300M.jpg")
+        self.new_router("SamD", "GL-AR750", "routers/GL-AR750.jpg")
+        self.new_router("office, room 311", "GL-AR150-676", "routers/GL-AR150.jpg")
+        self.new_router("Trance", "GL-AR750", "routers/GL-AR750.jpg")
+        self.new_router("Taco Bell #10088", "GL-AR150-676", "routers/GL-AR150.jpg")
+        self.new_router("unnamed", "GL-AR300M16-ext", "routers/GL-AR300M.jpg")
+        self.new_router("backup - kept in travel packpack", "GL-AR300M16-ext", "routers/GL-AR300M.jpg")
 
         self.new_provider("PIA", "Private Internet Access", "")
         self.new_provider("Mullvad", "Mullvad", "")
