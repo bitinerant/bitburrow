@@ -18,11 +18,11 @@ from libs.lists import Lists
 
 from kivymd.app import MDApp
 from kivymd.toast import toast
-from kivymd.uix.list import TwoLineAvatarIconListItem, ImageLeftWidget
 from kivymd.uix.card import MDCard, MDSeparator
 from kivymd.uix.label import MDLabel
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.modalview import ModalView
+from connect.main import Models
 
 class bitburrow(MDApp):
     title = 'BitBurrow'
@@ -31,7 +31,7 @@ class bitburrow(MDApp):
     lang = StringProperty('en')
 
     def __init__(self, **kvargs):
-        super(bitburrow, self).__init__(**kvargs)
+        super().__init__(**kvargs)
         Window.bind(on_keyboard=self.events_program)
         Window.soft_input_mode = 'below_target'
 
@@ -48,9 +48,10 @@ class bitburrow(MDApp):
         self.translation = Translation(
             self.lang, 'Ttest', os.path.join(self.directory, 'data', 'locales')
         )
+        self.router_models = Models.load()
 
     def get_application_config(self):
-        return super(bitburrow, self).get_application_config(
+        return super().get_application_config(
                         '{}/%(appname)s.ini'.format(self.directory))
 
     def build_config(self, config):
@@ -66,33 +67,8 @@ class bitburrow(MDApp):
         self.screen = StartScreen()
         self.manager = self.screen.ids.manager
         self.nav_drawer = self.screen.ids.nav_drawer
-
-        self.new_router("Jason's home router", "GL-AR300M16-ext", "routers/GL-AR300M.jpg")
-        self.new_router("SamD", "GL-AR750", "routers/GL-AR750.jpg")
-        self.new_router("office, room 311", "GL-AR150-676", "routers/GL-AR150.jpg")
-        self.new_router("Trance", "GL-AR750", "routers/GL-AR750.jpg")
-        self.new_router("Taco Bell #10088", "GL-AR150-676", "routers/GL-AR150.jpg")
-        self.new_router("unnamed", "GL-AR300M16-ext", "routers/GL-AR300M.jpg")
-        self.new_router("backup - kept in travel packpack", "GL-AR300M16-ext", "routers/GL-AR300M.jpg")
-
-        self.new_provider("PIA", "Private Internet Access", "")
-        self.new_provider("Mullvad", "Mullvad", "")
-
+        self.screen.ids.base_screen.build()
         return self.screen
-
-    def new_router(self, name, message, image_name):
-        router = TwoLineAvatarIconListItem(text=name, secondary_text=message)
-        router.add_widget(ImageLeftWidget(source=image_name))
-        self.screen.ids.base_screen.ids.routers_list.add_widget(router)
-
-    def new_provider(self, name, message, image_name):
-        #provider = MDCard(orientation="vertical", padding="8dp", size_hint=(.7, None), pos_hint={"center_x": .5, "center_y": 0}, size=("280dp", "180dp"))
-        provider = MDCard(orientation="vertical", padding="8dp", size_hint=(None, None), size=("280dp", "180dp"))
-        label = MDLabel(text=name, theme_text_color="Secondary", size_hint_y=1)
-        provider.add_widget(label)
-        provider.add_widget(MDSeparator(height="10dp"))
-        provider.add_widget(MDLabel(text=message))
-        self.screen.ids.base_screen.ids.accounts_list.add_widget(provider)
 
     def events_program(self, instance, keyboard, keycode, text, modifiers):
         if keyboard in (1001, 27):
