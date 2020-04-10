@@ -67,7 +67,6 @@ class bitburrow(MDApp):
         self.screen = StartScreen()
         self.manager = self.screen.ids.manager
         self.nav_drawer = self.screen.ids.nav_drawer
-        self.screen.ids.base_screen.build()
         return self.screen
 
     def events_program(self, instance, keyboard, keycode, text, modifiers):

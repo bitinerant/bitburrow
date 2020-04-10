@@ -1,5 +1,5 @@
 import gettext
-
+import re
 from kivy.lang import Observable
 
 
@@ -18,11 +18,15 @@ class Translation(Observable):
         self.resource_dir = resource_dir
         self.switch_lang(self.lang)
 
-    def _(self, text):
+    def _(self, text, normalize_spaces=False):
         try:
-            return self.ugettext(text)
+            r = self.ugettext(text)
         except UnicodeDecodeError:
-            return self.ugettext(text.decode("utf-8"))
+            r = self.ugettext(text.decode("utf-8"))
+        if normalize_spaces:  # replace all whitespace strings with a single space; trim ends
+            return re.sub(r"^ | $", "", re.sub(r"\s+", " ", r))
+        else:
+            return r
 
     def fbind(self, name, func, args, **kwargs):
         if name == "_":
