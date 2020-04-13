@@ -15,9 +15,13 @@ try:
     import webbrowser
     import kivy
     kivy.require('1.9.2')
+    from kivy.utils import platform
     from kivy.config import Config
     Config.set('kivy', 'keyboard_mode', 'system')
     Config.set('kivy', 'log_enable', 0)
+    if platform != 'android' and platform != 'ios': # for testing, approximate an Android phone
+        Config.set('graphics', 'width', '413')  # from https://stackoverflow.com/a/30332167
+        Config.set('graphics', 'height', '733')
     from kivymd.theming import ThemeManager
 except Exception:
     traceback.print_exc(file=open(os.path.join(directory, 'error.log'), 'w'))
