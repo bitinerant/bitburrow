@@ -33,14 +33,23 @@ Builder.load_string('''
         size_hint_y: None
         height: root.height - action_bar.height
         BaseScreen:
+            id: base_screen
         GuideIntro:
+            id: guide_intro
         GuideVpnProvider:
+            id: guide_vpn_provider
         GuideVpnCredentials:
+            id: guide_vpn_credentials
         GuideVpnLocation:
+            id: guide_vpn_location
         GuideRouterName:
+            id: guide_router_name
         GuideConnectWiFi:
+            id: guide_connect_wifi
         GuideLogin:
+            id: guide_login
         GuideConfigure:
+            id: guide_configure
         License:
             id: license
         About:

@@ -4,18 +4,15 @@
 import os
 import sys
 from ast import literal_eval
-
 from kivy.core.window import Window
 from kivy.config import ConfigParser
 from kivy.clock import Clock
 from kivy.utils import get_hex_from_color
 from kivy.properties import ObjectProperty, StringProperty
-
 from main import __version__
 from libs.translation import Translation
 from screens.startscreen import StartScreen
 from libs.lists import Lists
-
 from kivymd.app import MDApp
 from kivymd.toast import toast
 from kivymd.uix.card import MDCard, MDSeparator
@@ -23,6 +20,7 @@ from kivymd.uix.label import MDLabel
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.modalview import ModalView
 from connect.main import Models
+
 
 class bitburrow(MDApp):
     title = 'BitBurrow'
@@ -34,7 +32,6 @@ class bitburrow(MDApp):
         super().__init__(**kvargs)
         Window.bind(on_keyboard=self.events_program)
         Window.soft_input_mode = 'below_target'
-
         self.list_previous_screens = ['base_screen']
         self.window = Window
         self.config = ConfigParser()
@@ -76,7 +73,6 @@ class bitburrow(MDApp):
             self.back_screen(event=keyboard)
         elif keyboard in (282, 319):
             pass
-
         return True
 
     def back_screen(self, event=None):
@@ -127,9 +123,7 @@ class bitburrow(MDApp):
     def card(self, content, title=None, background_color=None, size=(0.7, 0.5)):
         if not background_color:
             background_color = [1.0, 1.0, 1.0, 1]
-
         card = MDCard(size_hint=(1, 1), padding=5)  # , background_color=background_color)
-
         if title:
             box = BoxLayout(orientation="vertical", padding="8dp")
             box.add_widget(
@@ -146,7 +140,6 @@ class bitburrow(MDApp):
             card.add_widget(box)
         else:
             card.add_widget(content)
-
         dialog = ModalView(size_hint=size, background_color=[0, 0, 0, 0.2])
         dialog.add_widget(card)
         return dialog
@@ -158,12 +151,10 @@ class bitburrow(MDApp):
                     self.lang = locale
                     self.config.set('General', 'language', self.lang)
                     self.config.write()
-
         dict_info_locales = {}
         for locale in self.dict_language.keys():
             dict_info_locales[self.dict_language[locale]] = \
                 ['locale', locale == self.lang]
-
         if not self.window_language:
             self.window_language = self.card(
                 Lists(
@@ -180,10 +171,8 @@ class bitburrow(MDApp):
             if self.exit_interval > 5:
                 self.exit_interval = False
                 Clock.unschedule(check_interval_press)
-
         if self.exit_interval:
             sys.exit(0)
-            
         Clock.schedule_interval(check_interval_press, 1)
         toast(self.translation._('Press Back to Exit'))
 

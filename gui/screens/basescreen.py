@@ -44,13 +44,13 @@ Builder.load_string('''
                 FloatLayout:
                     ScrollView:
                         MDList:
-                            id: routers_list
+                            id: router_list
                     FloatButton:
             Tab:
                 text: "VPN ACCOUNTS"
                 ScrollView:
                     MDList:
-                        id: accounts_list
+                        id: account_list
 ''')
 
 
@@ -66,7 +66,6 @@ class BaseScreen(Screen):
             m = random.choice(app.router_models[1:])
             self.append_router(
                 " or ".join(m.display_names),
-                #m.mfg_page if exists(m.mfg_page) else "N/A",
                 m.mfg_page if hasattr(m, 'mfg_page') else "N/A",
                 join("models", m.id + ".jpg"),
             )
@@ -76,7 +75,7 @@ class BaseScreen(Screen):
     def append_router(self, name, message, image_name):
         router = TwoLineAvatarListItem(text=name, secondary_text=message)
         router.add_widget(ImageLeftWidget(source=image_name))
-        self.ids.routers_list.add_widget(router)
+        self.ids.router_list.add_widget(router)
 
     def append_provider(self, name, message, image_name):
         #provider = MDCard(orientation="vertical", padding="8dp", size_hint=(.7, None), pos_hint={"center_x": .5, "center_y": 0}, size=("280dp", "180dp"))
@@ -85,7 +84,7 @@ class BaseScreen(Screen):
         provider.add_widget(label)
         provider.add_widget(MDSeparator(height="10dp"))
         provider.add_widget(MDLabel(text=message))
-        self.ids.accounts_list.add_widget(provider)
+        self.ids.account_list.add_widget(provider)
 
 
 class FloatButton(AnchorLayout):

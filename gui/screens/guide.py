@@ -8,9 +8,12 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivymd.uix.dialog import MDDialog
-from kivymd.uix.button import MDRaisedButton, MDRectangleFlatButton
+from kivymd.uix.button import MDRaisedButton, MDRectangleFlatButton, MDFlatButton
+from kivymd.uix.list import MDList, TwoLineAvatarListItem, ImageLeftWidget
+from kivymd.toast import toast
 from kivy.uix.screenmanager import Screen
 from kivy.clock import Clock
+from os.path import join
 import textwrap
 import webbrowser
 
@@ -45,6 +48,13 @@ Builder.load_string('''
     padding: 20, 4
     color: 0, 0, 0, 1
     font_size: '16sp'
+
+<SelectOne>:
+    on_release: root.set_icon(check)
+    CheckboxRightWidget:
+        id: check
+        group: "check"
+        on_active: root.callback(*args)
 
 <GuideScreenBase>:
     StackLayout:
@@ -95,27 +105,41 @@ class GuideTextLabel(Label):
     pass
 
 
+class SelectOne(TwoLineAvatarListItem):
+    divider = None
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.callback = self.callback_on_active
+    
+    def callback_on_active(self, check_widget, active):
+        # note: assumes number of active checks is NEVER more than 1
+        self.select(self.id if active else None)
+
+
 class BackNextBar(FloatLayout):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.callback = self.button_press
+        self.callback = self.callback_button_press
         Clock.schedule_once(self.build)
 
     def build(self, *args):
-        #self.height = self.ids.button_next.height
         self.ids.button_next.text = 'NEXT  [b]>[/b]'
         if self.parent.name == 'guide_intro':
             self.ids.button_back.text = 'CANCEL'
         else:
             self.ids.button_back.text = '[b]<[/b]  BACK'
 
-    def button_press(self, btn_name):
+    def callback_button_press(self, btn_name):
         app = MDApp.get_running_app()
         current_index = app.manager.screen_names.index(app.manager.current)
         if btn_name == 'next':
-            app.manager.current = app.manager.screen_names[current_index + 1]
-            app.manager.transition.direction = "left"
+            if app.manager.current == "guide_vpn_provider" and app.screen.ids.guide_vpn_provider.selected is None:
+                toast("Please select a VPN provider.")
+            else:
+                app.manager.current = app.manager.screen_names[current_index + 1]
+                app.manager.transition.direction = "left"
         else:
             app.manager.current = app.manager.screen_names[current_index - 1]
             app.manager.transition.direction = "right"
@@ -129,8 +153,11 @@ class GuideScreenBase(Screen):
         scroll_widget.bind(minimum_height=scroll_widget.setter('height'))
 
     def open_url(self, instance, url):
-        print("opening {} in instance {}".format(url, instance))
-        webbrowser.open(url)
+        print("opening {}".format(url))
+        try:
+            getattr(self, url)()  # it's either a local method
+        except AttributeError:
+            webbrowser.open(url)  # ... or a web address
 
     def link_mu(self, text, url):
         return "[ref={}][color=0000ff]{}[/color][/ref]".format(url, text)
@@ -151,34 +178,49 @@ class GuideIntro(GuideScreenBase):
         )
         content_stack.add_widget(heading)
         main_text = GuideTextLabel(
-            text = self.app.translation._('\
-                Welcome to the BitBurrow app. If you have not already done so, visit\
-                '+self.link_mu("bitburrow.com", "https://bitburrow.com")+'\
-                for information about BitBurrow, requirements, and how this app fits in.\
-                A list of suported routers is available '+self.link_mu("here", "router_list")+'.\
-                ', normalize_spaces=True),
+            text = self.app.translation._(
+                'Welcome to the BitBurrow app. If you have not already done so, visit ' + 
+                self.link_mu("bitburrow.com", "https://bitburrow.com") + 
+                ' for information about BitBurrow, requirements, and how this app fits in. ',
+                #'You can also view ' +
+                #self.link_mu("a list of supported routers", "router_dialog") + '.',
+                normalize_spaces=True),
         )
         main_text.bind(on_ref_press=self.open_url)
         content_stack.add_widget(main_text)
         content_stack.bind(minimum_height=content_stack.setter('height'))
 
-    def open_url(self, instance, url):
-        if url == "router_list":
-            dialog = MDDialog(
-                size_hint=(0.8, 0.7),
-                title='Supported routers',
-                text="one two three four five six seven eight nine zero "*60,
-                text_button_ok='Ok',
-            )
-            dialog.open()
-        else:
-            super().open_url(instance, url)
+    def router_dialog(self):
+        items = list()
+        for m in self.app.router_models[1:]:
+            if m.bb_status == "supported":
+                r = TwoLineAvatarListItem(
+                    text = " or ".join(m.display_names),
+                    secondary_text = m.mfg_page if hasattr(m, 'mfg_page') else "N/A",
+                )
+                r.add_widget(ImageLeftWidget(source=join("models", m.id + ".jpg")))
+                items.append(r)
+        dialog = MDDialog(
+            title = 'Supported routers',
+            type = "simple",
+            items = items,
+            #markup = True,  # not available, but on by default
+            buttons = [MDFlatButton(
+                text = "OK",
+                text_color = self.app.theme_cls.primary_color,
+                on_press = lambda button: dialog.dismiss(),
+            ),],
+            size_hint = (0.8, 0.7),
+            auto_dismiss = True,
+        )
+        dialog.open()
 
 
 class GuideVpnProvider(GuideScreenBase):
 
     def __init__(self, **kvargs):
         self.name = 'guide_vpn_provider'
+        self.selected = None
         super().__init__(**kvargs)
         Clock.schedule_once(self.build)
 
@@ -190,13 +232,39 @@ class GuideVpnProvider(GuideScreenBase):
         )
         content_stack.add_widget(heading)
         main_text = GuideTextLabel(
-            text = self.app.translation._('\
-                Choose a VPN provider and sign up for a service plan.\
-                ', normalize_spaces=True),
+            text = self.app.translation._(
+                'Choose a VPN provider from the list below. ' +
+                'If you have not already done so, sign up for a VPN plan ' +
+                "on the provider's website.", normalize_spaces=True),
         )
         main_text.bind(on_ref_press=self.open_url)
         content_stack.add_widget(main_text)
+        provider_list = MDList()
+        provider_list.add_widget(self.provider(
+            name = "Mullvad VPN",
+            website = "mullvad.net",
+            url = "https://mullvad.net/en/",
+        ))
+        provider_list.add_widget(self.provider(
+            name = "Private Internet Access",
+            website = "privateinternetaccess.com",
+            url = "https://www.privateinternetaccess.com/",
+        ))
+        content_stack.add_widget(provider_list)
         content_stack.bind(minimum_height=content_stack.setter('height'))
+    
+    def provider(self, name, website, url):
+        widget = SelectOne(
+            text = "[b]" + name + "[/b]",
+            secondary_text = "website: " + self.link_mu(website, url)
+        )
+        widget.ids._lbl_secondary.bind(on_ref_press=self.open_url)  # tapping link opens browser
+        widget.id = website
+        widget.select = self.set_selected
+        return widget
+    
+    def set_selected(self, state):
+        self.selected = state
 
 
 class GuideVpnCredentials(GuideScreenBase):
