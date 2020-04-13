@@ -1,0 +1,21 @@
+# This is a list of VPN providers in YAML format. Be very careful
+# when editing because indent, colons, and many other characters
+# have special meaning.
+- !Provider  # the first entry documents fields
+  id: a unique ID, normally same as website
+  display_name: name shown in app
+  website: website for display, without https or www or unnecessary slashes
+  url: full web address of provider's website
+  bb_status: works with BitBurrow - "supported" or, if not, a brief comment
+- !Provider
+  id: mullvad.net
+  display_name: Mullvad VPN
+  website: mullvad.net
+  url: https://mullvad.net/en/
+  bb_status: supported
+- !Provider
+  id: privateinternetaccess.com
+  display_name: Private Internet Access
+  website: privateinternetaccess.com
+  url: https://www.privateinternetaccess.com/
+  bb_status: supported

@@ -19,7 +19,7 @@ from kivymd.uix.card import MDCard, MDSeparator
 from kivymd.uix.label import MDLabel
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.modalview import ModalView
-from connect.main import Models
+from connect.main import Models, Providers
 
 
 class bitburrow(MDApp):
@@ -46,6 +46,7 @@ class bitburrow(MDApp):
             self.lang, 'Ttest', os.path.join(self.directory, 'data', 'locales')
         )
         self.router_models = Models.load()
+        self.providers = Providers.load()
 
     def get_application_config(self):
         return super().get_application_config(

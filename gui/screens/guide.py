@@ -240,28 +240,18 @@ class GuideVpnProvider(GuideScreenBase):
         main_text.bind(on_ref_press=self.open_url)
         content_stack.add_widget(main_text)
         provider_list = MDList()
-        provider_list.add_widget(self.provider(
-            name = "Mullvad VPN",
-            website = "mullvad.net",
-            url = "https://mullvad.net/en/",
-        ))
-        provider_list.add_widget(self.provider(
-            name = "Private Internet Access",
-            website = "privateinternetaccess.com",
-            url = "https://www.privateinternetaccess.com/",
-        ))
+        for p in self.app.providers[1:]:
+            if p.bb_status == "supported":
+                widget = SelectOne(
+                    text = "[b]" + p.display_name + "[/b]",
+                    secondary_text = "website: " + self.link_mu(p.website, p.url)
+                )
+                widget.ids._lbl_secondary.bind(on_ref_press=self.open_url)  # tapping link opens browser
+                widget.id = p.id
+                widget.select = self.set_selected
+                provider_list.add_widget(widget)
         content_stack.add_widget(provider_list)
         content_stack.bind(minimum_height=content_stack.setter('height'))
-    
-    def provider(self, name, website, url):
-        widget = SelectOne(
-            text = "[b]" + name + "[/b]",
-            secondary_text = "website: " + self.link_mu(website, url)
-        )
-        widget.ids._lbl_secondary.bind(on_ref_press=self.open_url)  # tapping link opens browser
-        widget.id = website
-        widget.select = self.set_selected
-        return widget
     
     def set_selected(self, state):
         self.selected = state
