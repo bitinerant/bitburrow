@@ -508,7 +508,7 @@ class Models:
         """Load and validate list of routers."""
         self = Models()
         self.models = list()
-        f_path = os.path.join("models", "details.yaml")
+        f_path = os.path.join("models", "details.yml")
         with open(f_path, "r") as f:
             try:
                 self.models = yaml.safe_load(f)
@@ -532,7 +532,7 @@ class Providers:
         """Load and validate list of providers."""
         self = Providers()
         self.providers = list()
-        f_path = os.path.join("providers", "details.yaml")
+        f_path = os.path.join("providers", "details.yml")
         with open(f_path, "r") as f:
             try:
                 self.providers = yaml.safe_load(f)
