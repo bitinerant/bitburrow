@@ -29,6 +29,7 @@ class bitburrow(MDApp):
     lang = StringProperty('en')
 
     def __init__(self, **kvargs):
+        self.theme_cls.primary_palette = 'BlueGray'
         super().__init__(**kvargs)
         Window.bind(on_keyboard=self.events_program)
         Window.soft_input_mode = 'below_target'

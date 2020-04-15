@@ -2,20 +2,40 @@
 # when editing because indent, colons, and many other characters
 # have special meaning.
 - !Provider  # the first entry documents fields
-  id: a unique ID, normally same as website
-  display_name: name shown in app
-  website: website for display, without https or www or unnecessary slashes
-  url: full web address of provider's website
-  bb_status: works with BitBurrow - "supported" or, if not, a brief comment
+    id: a unique ID, normally same as website
+    display_name: name shown in app
+    website: website for display, without https or www or unnecessary slashes
+    url: full web address of provider's website
+    credentials: list of fields required to use the VPN (e.g. username, password); each field has a list of MDTExtField attributes (see https://kivymd.readthedocs.io/en/latest/components/text-field/index.html#kivymd.uix.textfield.MDTextField)
+    bb_status: works with BitBurrow - "supported" or, if not, a brief comment
 - !Provider
-  id: mullvad.net
-  display_name: Mullvad VPN
-  website: mullvad.net
-  url: https://mullvad.net/en/
-  bb_status: supported
+    id: mullvad.net
+    display_name: Mullvad VPN
+    website: mullvad.net
+    url: https://mullvad.net/en/
+    credentials:
+    - account:
+        hint_text: Account number
+        required: True
+    - comment:
+        hint_text: Comment (optional)
+    bb_status: supported
 - !Provider
-  id: privateinternetaccess.com
-  display_name: Private Internet Access
-  website: privateinternetaccess.com
-  url: https://www.privateinternetaccess.com/
-  bb_status: supported
+    id: privateinternetaccess.com
+    display_name: Private Internet Access
+    website: privateinternetaccess.com
+    url: https://www.privateinternetaccess.com/
+    credentials:
+    - user:
+        hint_text: Username
+        helper_text: 'Usually has the form: p1234567'
+        helper_text_mode: on_focus
+        required: True
+    - password:
+        hint_text: Password
+        password: True
+        password_mask: '*'  # '●' is not displayed correctly
+        required: True
+    - comment:
+        hint_text: Comment (optional)
+    bb_status: supported

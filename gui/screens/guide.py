@@ -10,6 +10,9 @@ from kivy.uix.button import Button
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.button import MDRaisedButton, MDRectangleFlatButton, MDFlatButton
 from kivymd.uix.list import MDList, TwoLineAvatarListItem, ImageLeftWidget
+from kivymd.uix.textfield import MDTextField
+from kivy.uix.stacklayout import StackLayout
+from kivy.uix.anchorlayout import AnchorLayout
 from kivymd.toast import toast
 from kivy.uix.screenmanager import Screen
 from kivy.clock import Clock
@@ -50,7 +53,7 @@ Builder.load_string('''
     font_size: '16sp'
 
 <SelectOne>:
-    on_release: root.set_icon(check)
+    on_release: root.set_icon(check)  # tap to right of checkbox
     CheckboxRightWidget:
         id: check
         group: "check"
@@ -66,16 +69,12 @@ Builder.load_string('''
             width: self.parent.width
             height: self.parent.height - root.ids.back_next_bar.height
             StackLayout:
-                id: scrollarea
+                id: scroll_area
                 size_hint_y: None
                 Label:
                     id: padtop
                     size_hint_y: None
                     height: 22
-                StackLayout:
-                    id: content_stack
-                    size_hint_y: None
-                    #height: 0
     BackNextBar:
         id: back_next_bar
 
@@ -112,9 +111,17 @@ class SelectOne(TwoLineAvatarListItem):
         super().__init__(**kwargs)
         self.callback = self.callback_on_active
     
-    def callback_on_active(self, check_widget, active):
+    def callback_on_active(self, instance_check, active):
         # note: assumes number of active checks is NEVER more than 1
-        self.select(self.id if active else None)
+        self.callback_select(self.index if active else None)
+
+    def set_icon(self, instance_check):
+        instance_check.active = True
+        check_list = instance_check.get_widgets(instance_check.group)
+        for check in check_list:
+            if check != instance_check:
+                check.active = False
+        self.callback_on_active(instance_check, True)
 
 
 class BackNextBar(FloatLayout):
@@ -133,25 +140,40 @@ class BackNextBar(FloatLayout):
 
     def callback_button_press(self, btn_name):
         app = MDApp.get_running_app()
-        current_index = app.manager.screen_names.index(app.manager.current)
         if btn_name == 'next':
-            if app.manager.current == "guide_vpn_provider" and app.screen.ids.guide_vpn_provider.selected is None:
-                toast("Please select a VPN provider.")
-            else:
-                app.manager.current = app.manager.screen_names[current_index + 1]
+            if app.manager.current_screen.is_data_valid():
+                if app.manager.current == "guide_vpn_provider":
+                    app.screen.ids.guide_vpn_credentials.build()
+                app.manager.current = app.manager.next()
                 app.manager.transition.direction = "left"
-        else:
-            app.manager.current = app.manager.screen_names[current_index - 1]
+            # else force user to fix fields before moving to next screen
+        else:  # 'back'
+            app.manager.current = app.manager.previous()
             app.manager.transition.direction = "right"
 
 
 class GuideScreenBase(Screen):
+    form_data = dict()  # user-entered data from all screens
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.app = MDApp.get_running_app()
+        self.scroll_area = None
+        self.content_stack = None
 
     def build(self, *args):
-        self.app = MDApp.get_running_app()
-        scroll_widget = self.ids.scrollarea
-        scroll_widget.bind(minimum_height=scroll_widget.setter('height'))
-
+        if self.scroll_area is None:  # first build
+            self.scroll_area = self.ids.scroll_area
+            self.scroll_area.bind(minimum_height=self.scroll_area.setter('height'))
+        if self.content_stack is not None:
+            self.scroll_area.remove_widget(self.content_stack)
+        self.content_stack = StackLayout(  # create or recreate content_stack
+            id = "content_stack",
+            size_hint_y = None,
+        )
+        self.content_stack.bind(minimum_height = self.content_stack.setter('height'))
+        self.scroll_area.add_widget(self.content_stack)
+        
     def open_url(self, instance, url):
         print("opening {}".format(url))
         try:
@@ -162,6 +184,9 @@ class GuideScreenBase(Screen):
     def link_mu(self, text, url):
         return "[ref={}][color=0000ff]{}[/color][/ref]".format(url, text)
 
+    def is_data_valid(self):  # override with method that checks user input
+        toast("This method should never be called.")
+        return False
 
 class GuideIntro(GuideScreenBase):
 
@@ -172,11 +197,10 @@ class GuideIntro(GuideScreenBase):
 
     def build(self, *args):
         super().build(*args)
-        content_stack = self.ids.content_stack
         heading = GuideTextLabel(
             text = self.app.translation._('[size=30][b]Introduction[/b][/size]'),
         )
-        content_stack.add_widget(heading)
+        self.content_stack.add_widget(heading)
         main_text = GuideTextLabel(
             text = self.app.translation._(
                 'Welcome to the BitBurrow app. If you have not already done so, visit ' + 
@@ -187,8 +211,7 @@ class GuideIntro(GuideScreenBase):
                 normalize_spaces=True),
         )
         main_text.bind(on_ref_press=self.open_url)
-        content_stack.add_widget(main_text)
-        content_stack.bind(minimum_height=content_stack.setter('height'))
+        self.content_stack.add_widget(main_text)
 
     def router_dialog(self):
         items = list()
@@ -215,22 +238,23 @@ class GuideIntro(GuideScreenBase):
         )
         dialog.open()
 
+    def is_data_valid(self):
+        return True
+
 
 class GuideVpnProvider(GuideScreenBase):
 
     def __init__(self, **kvargs):
         self.name = 'guide_vpn_provider'
-        self.selected = None
         super().__init__(**kvargs)
         Clock.schedule_once(self.build)
 
     def build(self, *args):
         super().build(*args)
-        content_stack = self.ids.content_stack
         heading = GuideTextLabel(
             text = self.app.translation._('[size=30][b]Step 1[/b][/size]'),
         )
-        content_stack.add_widget(heading)
+        self.content_stack.add_widget(heading)
         main_text = GuideTextLabel(
             text = self.app.translation._(
                 'Choose a VPN provider from the list below. ' +
@@ -238,23 +262,28 @@ class GuideVpnProvider(GuideScreenBase):
                 "on the provider's website.", normalize_spaces=True),
         )
         main_text.bind(on_ref_press=self.open_url)
-        content_stack.add_widget(main_text)
+        self.content_stack.add_widget(main_text)
         provider_list = MDList()
-        for p in self.app.providers[1:]:
+        for i, p in enumerate(self.app.providers[1:]):
             if p.bb_status == "supported":
                 widget = SelectOne(
                     text = "[b]" + p.display_name + "[/b]",
                     secondary_text = "website: " + self.link_mu(p.website, p.url)
                 )
                 widget.ids._lbl_secondary.bind(on_ref_press=self.open_url)  # tapping link opens browser
-                widget.id = p.id
-                widget.select = self.set_selected
+                widget.index = i+1  # +1 because we start at providers[1]
+                widget.callback_select = self.set_selected
                 provider_list.add_widget(widget)
-        content_stack.add_widget(provider_list)
-        content_stack.bind(minimum_height=content_stack.setter('height'))
+        self.content_stack.add_widget(provider_list)
     
-    def set_selected(self, state):
-        self.selected = state
+    def set_selected(self, provider_index):
+        self.form_data['vpn_provider'] = provider_index
+
+    def is_data_valid(self):
+        if self.form_data.get('vpn_provider', None) is None:
+            toast("Please select a VPN provider.")
+            return False
+        return True
 
 
 class GuideVpnCredentials(GuideScreenBase):
@@ -262,26 +291,51 @@ class GuideVpnCredentials(GuideScreenBase):
     def __init__(self, **kvargs):
         self.name = 'guide_vpn_credentials'
         super().__init__(**kvargs)
-        Clock.schedule_once(self.build)
+        self.build_index = None
 
     def build(self, *args):
+        current_index = self.form_data.get('vpn_provider', None)  # user-selected provider
+        if current_index == self.build_index:
+            return  # keep existing layout
         super().build(*args)
-        content_stack = self.ids.content_stack
+        self.build_index = current_index
+        provider = self.app.providers[current_index]
         heading = GuideTextLabel(
             text = self.app.translation._('[size=30][b]Step 2[/b][/size]'),
         )
-        content_stack.add_widget(heading)
+        self.content_stack.add_widget(heading)
         main_text = GuideTextLabel(
-            text = self.app.translation._('\
-                Enter your VPN credentials.\
-                ', normalize_spaces=True),
+            text = self.app.translation._(
+                'Enter your credentials for ' +
+                provider.display_name + '.', normalize_spaces=True),
         )
         main_text.bind(on_ref_press=self.open_url)
-        content_stack.add_widget(main_text)
-        for i in range(10):
-            btn = Button(text=str(i), size_hint_y=None, height=30+i*7)
-            content_stack.add_widget(btn)
-        content_stack.bind(minimum_height=content_stack.setter('height'))
+        self.content_stack.add_widget(main_text)
+        for cred in provider.credentials:  # fields for user to fill in
+            frame = AnchorLayout()
+            frame.ffid = True
+            frame.size_hint = (1, None)
+            frame.padding = dp(20)
+            field = MDTextField()
+            id = list(cred)[0]
+            field.id = id
+            for attr in cred[id]:  # cred[id] is a dictionary of MDTextField() attributes
+                setattr(field, attr, cred[id][attr])
+                print("{}.field.{} = {}".format(id, attr, cred[id][attr]))
+            frame.add_widget(field)
+            self.content_stack.add_widget(frame)
+
+    def is_data_valid(self):
+        for cred in self.content_stack.children:  # find the user-entered text fields
+            if getattr(cred, 'ffid', False) == False or len(cred.children) != 1:
+                continue
+            id = cred.children[0].id
+            text = cred.children[0].text
+            if getattr(cred.children[0], 'required', False) and text == "":
+                toast("The {} field cannot be empty.".format(cred.children[0].hint_text.lower()))
+                return False
+            self.form_data[id] = text
+        return True
 
 
 class GuideVpnLocation(GuideScreenBase):
@@ -293,19 +347,20 @@ class GuideVpnLocation(GuideScreenBase):
 
     def build(self, *args):
         super().build(*args)
-        content_stack = self.ids.content_stack
         heading = GuideTextLabel(
             text = self.app.translation._('[size=30][b]Step 3[/b][/size]'),
         )
-        content_stack.add_widget(heading)
+        self.content_stack.add_widget(heading)
         main_text = GuideTextLabel(
-            text = self.app.translation._('\
-                Select where the VPN will terminate.\
-                ', normalize_spaces=True),
+            text = self.app.translation._(
+                'Select where the VPN will terminate.', normalize_spaces=True),
         )
         main_text.bind(on_ref_press=self.open_url)
-        content_stack.add_widget(main_text)
-        content_stack.bind(minimum_height=content_stack.setter('height'))
+        self.content_stack.add_widget(main_text)
+
+    def is_data_valid(self):
+        toast("FIXME")
+        return False
 
 
 class GuideRouterName(Screen):
