@@ -16,7 +16,8 @@ from kivy.uix.anchorlayout import AnchorLayout
 from kivymd.toast import toast
 from kivy.uix.screenmanager import Screen
 from kivy.clock import Clock
-from os.path import join
+import providers.endpointmanager
+import os.path
 import textwrap
 import webbrowser
 
@@ -112,7 +113,7 @@ class SelectOne(TwoLineAvatarListItem):
         self.callback = self.callback_on_active
     
     def callback_on_active(self, instance_check, active):
-        # note: assumes number of active checks is NEVER more than 1
+        # note: assumes number of active checks is NEVER more than 1 (current KivyMD behavior)
         self.callback_select(self.index if active else None)
 
     def set_icon(self, instance_check):
@@ -175,10 +176,10 @@ class GuideScreenBase(Screen):
         self.scroll_area.add_widget(self.content_stack)
         
     def open_url(self, instance, url):
-        print("opening {}".format(url))
         try:
             getattr(self, url)()  # it's either a local method
         except AttributeError:
+            print(f"opening {url} in web browser")
             webbrowser.open(url)  # ... or a web address
 
     def link_mu(self, text, url):
@@ -221,7 +222,7 @@ class GuideIntro(GuideScreenBase):
                     text = " or ".join(m.display_names),
                     secondary_text = m.mfg_page if hasattr(m, 'mfg_page') else "N/A",
                 )
-                r.add_widget(ImageLeftWidget(source=join("models", m.id + ".jpg")))
+                r.add_widget(ImageLeftWidget(source=os.path.join("models", m.id + ".jpg")))
                 items.append(r)
         dialog = MDDialog(
             title = 'Supported routers',
@@ -248,6 +249,7 @@ class GuideVpnProvider(GuideScreenBase):
         self.name = 'guide_vpn_provider'
         super().__init__(**kvargs)
         Clock.schedule_once(self.build)
+        self.background_process = dict()  # EndpointManager() object for each provider
 
     def build(self, *args):
         super().build(*args)
@@ -276,8 +278,16 @@ class GuideVpnProvider(GuideScreenBase):
                 provider_list.add_widget(widget)
         self.content_stack.add_widget(provider_list)
     
-    def set_selected(self, provider_index):
-        self.form_data['vpn_provider'] = provider_index
+    def set_selected(self, p):
+        self.form_data['vpn_provider'] = p  # index of VPN provider, 1..n
+        if p is not None:  # when selecting, go ahead and pre-fetch endpoint list
+            if self.background_process.get(p, None) is None:
+                # https://kivy.org/doc/stable/api-kivy.clock.html "The callback is weak-referenced"
+                self.background_process[p] = providers.endpointmanager.EndpointManager(
+                    provider_id = self.app.providers[p].id,
+                    storage = self.app.user_data_dir,
+                )
+            self.background_process[p].multiprocess_download()
 
     def is_data_valid(self):
         if self.form_data.get('vpn_provider', None) is None:
@@ -321,7 +331,6 @@ class GuideVpnCredentials(GuideScreenBase):
             field.id = id
             for attr in cred[id]:  # cred[id] is a dictionary of MDTextField() attributes
                 setattr(field, attr, cred[id][attr])
-                print("{}.field.{} = {}".format(id, attr, cred[id][attr]))
             frame.add_widget(field)
             self.content_stack.add_widget(frame)
 
