@@ -1,3 +1,6 @@
 [submodule "flags"]
 	path = flags
 	url = https://github.com/emcrisostomo/flags
+[submodule "ansible_openwrt"]
+	path = ansible_openwrt
+	url = https://github.com/gekmihesg/ansible-openwrt
