@@ -1,1 +1,1 @@
-../../ansible-openwrt/vars_plugins
+../ansible_openwrt/vars_plugins
