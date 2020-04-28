@@ -40,7 +40,8 @@ class AnsibleAPI():
             for k in a.recap:  # 'ok', 'changed', 'failed', etc.
                 print("recap[{}] = {}".format(k, a.recap[k]))
         """
-        # Based on https://stackoverflow.com/a/57501942
+        # Based on https://docs.ansible.com/ansible/latest/dev_guide/developing_api.html
+        # and https://stackoverflow.com/a/57501942
         self.result = -1
         self.log = None
         self.recap = {'failed': 1}

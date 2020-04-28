@@ -13,9 +13,10 @@ from kivymd.uix.list import MDList, TwoLineAvatarListItem, ImageLeftWidget
 from kivymd.uix.textfield import MDTextField
 from kivy.uix.stacklayout import StackLayout
 from kivy.uix.anchorlayout import AnchorLayout
+from kivymd.uix.list import TwoLineAvatarListItem, ImageLeftWidget
 from kivymd.toast import toast
 from kivy.uix.screenmanager import Screen
-from kivy.clock import Clock
+import kivy.clock
 import providers.endpointmanager
 import os.path
 import textwrap
@@ -23,6 +24,34 @@ import webbrowser
 
 
 Builder.load_string('''
+<RetryButtonBar>:
+    orientation: 'vertical'
+    size_hint_y: None
+    height: self.ids.button_retry.height + 40  # padding 20 above + 20 below
+    AnchorLayout:
+        anchor_x: 'center'
+        anchor_y: 'bottom'
+        padding: dp(20)
+        MDRaisedButton:
+            id: button_retry
+            markup: True
+            on_release: root.callback('retry')
+
+<SpinnerBar>:
+    orientation: 'vertical'
+    size_hint_y: None
+    height: self.ids.spinner.height + 40  # padding 20 above + 20 below
+    AnchorLayout:
+        anchor_x: 'center'
+        anchor_y: 'bottom'
+        padding: dp(20)
+        MDSpinner:
+            id: spinner
+            size_hint: None, None
+            size: dp(46), dp(46)
+            #pos_hint: {'center_x': .5, 'center_y': .5}
+
+
 <BackNextBar>:
     orientation: 'vertical'
     size_hint_y: None
@@ -110,9 +139,9 @@ class SelectOne(TwoLineAvatarListItem):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.callback = self.callback_on_active
+        self.callback = self.on_item_tap
     
-    def callback_on_active(self, instance_check, active):
+    def on_item_tap(self, instance_check, active):
         # note: assumes number of active checks is NEVER more than 1 (current KivyMD behavior)
         self.callback_select(self.index if active else None)
 
@@ -122,15 +151,23 @@ class SelectOne(TwoLineAvatarListItem):
         for check in check_list:
             if check != instance_check:
                 check.active = False
-        self.callback_on_active(instance_check, True)
+        self.on_item_tap(instance_check, True)
+
+
+class RetryButtonBar(FloatLayout):
+    pass
+
+
+class SpinnerBar(FloatLayout):
+    pass
 
 
 class BackNextBar(FloatLayout):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.callback = self.callback_button_press
-        Clock.schedule_once(self.build)
+        self.callback = self.on_backnext_button
+        kivy.clock.Clock.schedule_once(self.build)
 
     def build(self, *args):
         self.ids.button_next.text = 'NEXT  [b]>[/b]'
@@ -139,13 +176,13 @@ class BackNextBar(FloatLayout):
         else:
             self.ids.button_back.text = '[b]<[/b]  BACK'
 
-    def callback_button_press(self, btn_name):
+    def on_backnext_button(self, btn_name):
         app = MDApp.get_running_app()
         if btn_name == 'next':
             if app.manager.current_screen.is_data_valid():
-                if app.manager.current == "guide_vpn_provider":
-                    app.screen.ids.guide_vpn_credentials.build()
-                app.manager.current = app.manager.next()
+                next_screen = app.manager.next()
+                app.screen.ids[next_screen].build()  # build next screen if needed
+                app.manager.current = next_screen
                 app.manager.transition.direction = "left"
             # else force user to fix fields before moving to next screen
         else:  # 'back'
@@ -155,6 +192,7 @@ class BackNextBar(FloatLayout):
 
 class GuideScreenBase(Screen):
     form_data = dict()  # user-entered data from all screens
+    background_thread = dict()  # EndpointManager() object for each VPN provider
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -163,10 +201,12 @@ class GuideScreenBase(Screen):
         self.content_stack = None
 
     def build(self, *args):
+        #print(f"building   {type(self)}")
         if self.scroll_area is None:  # first build
             self.scroll_area = self.ids.scroll_area
             self.scroll_area.bind(minimum_height=self.scroll_area.setter('height'))
         if self.content_stack is not None:
+            print(f"rebuilding {type(self)} content_stack")
             self.scroll_area.remove_widget(self.content_stack)
         self.content_stack = StackLayout(  # create or recreate content_stack
             id = "content_stack",
@@ -189,14 +229,33 @@ class GuideScreenBase(Screen):
         toast("This method should never be called.")
         return False
 
+    def launch_background_tasks(self, skip_if_tried_already=True):
+        p = self.form_data['vpn_provider']
+        if p is None:
+            return
+        if self.background_thread.get(p, None) is None:  # first attempt
+            # https://kivy.org/doc/stable/api-kivy.clock.html "The callback is weak-referenced"
+            self.background_thread[p] = providers.endpointmanager.EndpointManager(
+                provider_id = self.app.providers[p].id,
+                storage = self.app.user_data_dir,
+            )
+        else:  # we've tried download before
+            if skip_if_tried_already:
+                return
+        self.background_thread[p].prepare_phonebook()
+
+
 class GuideIntro(GuideScreenBase):
 
     def __init__(self, **kvargs):
         self.name = 'guide_intro'
         super().__init__(**kvargs)
-        Clock.schedule_once(self.build)
+        self.built = False
 
     def build(self, *args):
+        if self.built:
+            return
+        self.built = True
         super().build(*args)
         heading = GuideTextLabel(
             text = self.app.translation._('[size=30][b]Introduction[/b][/size]'),
@@ -248,10 +307,12 @@ class GuideVpnProvider(GuideScreenBase):
     def __init__(self, **kvargs):
         self.name = 'guide_vpn_provider'
         super().__init__(**kvargs)
-        Clock.schedule_once(self.build)
-        self.background_process = dict()  # EndpointManager() object for each provider
+        self.built = False
 
     def build(self, *args):
+        if self.built:
+            return
+        self.built = True
         super().build(*args)
         heading = GuideTextLabel(
             text = self.app.translation._('[size=30][b]Step 1[/b][/size]'),
@@ -280,14 +341,7 @@ class GuideVpnProvider(GuideScreenBase):
     
     def set_selected(self, p):
         self.form_data['vpn_provider'] = p  # index of VPN provider, 1..n
-        if p is not None:  # when selecting, go ahead and pre-fetch endpoint list
-            if self.background_process.get(p, None) is None:
-                # https://kivy.org/doc/stable/api-kivy.clock.html "The callback is weak-referenced"
-                self.background_process[p] = providers.endpointmanager.EndpointManager(
-                    provider_id = self.app.providers[p].id,
-                    storage = self.app.user_data_dir,
-                )
-            self.background_process[p].multiprocess_download()
+        self.launch_background_tasks()  # when selecting, go ahead and pre-fetch endpoint list
 
     def is_data_valid(self):
         if self.form_data.get('vpn_provider', None) is None:
@@ -307,8 +361,8 @@ class GuideVpnCredentials(GuideScreenBase):
         current_index = self.form_data.get('vpn_provider', None)  # user-selected provider
         if current_index == self.build_index:
             return  # keep existing layout
-        super().build(*args)
         self.build_index = current_index
+        super().build(*args)
         provider = self.app.providers[current_index]
         heading = GuideTextLabel(
             text = self.app.translation._('[size=30][b]Step 2[/b][/size]'),
@@ -352,23 +406,92 @@ class GuideVpnLocation(GuideScreenBase):
     def __init__(self, **kvargs):
         self.name = 'guide_vpn_location'
         super().__init__(**kvargs)
-        Clock.schedule_once(self.build)
+        #self.built = False
 
     def build(self, *args):
+        #if self.built:
+        #    return
+        #self.built = True
         super().build(*args)
         heading = GuideTextLabel(
             text = self.app.translation._('[size=30][b]Step 3[/b][/size]'),
         )
         self.content_stack.add_widget(heading)
-        main_text = GuideTextLabel(
-            text = self.app.translation._(
-                'Select where the VPN will terminate.', normalize_spaces=True),
-        )
-        main_text.bind(on_ref_press=self.open_url)
-        self.content_stack.add_widget(main_text)
+        p = self.form_data['vpn_provider']
+        dl_status = self.background_thread[p].status
+        if not dl_status.startswith("done"):  # download in progress
+            main_text = GuideTextLabel(
+                text = self.app.translation._(
+                    'Please wait a moment while the list of available locations ' +
+                    'finishes downloading.', normalize_spaces=True),
+            )
+            main_text.bind(on_ref_press=self.open_url)
+            self.content_stack.add_widget(main_text)
+            spinner = SpinnerBar()
+            self.content_stack.add_widget(spinner)
+            kivy.clock.Clock.schedule_interval(self.check_dl_status, 0.3)  # call every X seconds
+        elif dl_status == "done_failed":  # download failed
+            main_text = GuideTextLabel(
+                text = self.app.translation._(
+                    'Downloading of the list of available locations has failed. Please check ' +
+                    'your internet connection and try again.', normalize_spaces=True),
+            )
+            main_text.bind(on_ref_press=self.open_url)
+            self.content_stack.add_widget(main_text)
+            retry_bar = RetryButtonBar()
+            retry_bar.ids.button_retry.text = "RETRY"
+            retry_bar.callback = self.on_retry_button
+            self.content_stack.add_widget(retry_bar)
+        else:  # download succeeded
+            main_text = GuideTextLabel(
+                text = self.app.translation._(
+                    'Choose a location for your VPN connection from the list below. This will ' +
+                    'be used to hide your physical location on the ' +
+                    'internet.', normalize_spaces=True),
+            )
+            main_text.bind(on_ref_press=self.open_url)
+            self.content_stack.add_widget(main_text)
+            endpoint_list = MDList()
+            p = self.form_data['vpn_provider']
+            for country in self.background_thread[p].phonebook['providers'][0]['countries']:
+                for city in country['cities']:
+                    widget = TwoLineAvatarListItem()
+                    icon = ImageLeftWidget()
+                    icon.source = f"flags/png/256/{country['code']}.png"
+                    widget.divider = None
+                    widget.type = "two-line"
+                    if city['name'] == "":
+                        widget.text = country['name']
+                    else:
+                        widget.text = f"{city['name']}, {country['name']}"
+                    l = len(city['servers'])
+                    widget.secondary_text = f"{l} server{'' if l == 1 else 's'}"
+                    widget.add_widget(icon)
+                    widget.on_release = self.on_city_tap
+                    endpoint_list.add_widget(widget)
+                    # dig further via: for server in city['servers']:
+                    # and: for range in server['port_rages_wg_udp']:
+            self.content_stack.add_widget(endpoint_list)
+    
+    def check_dl_status(self, *args):
+        p = self.form_data['vpn_provider']
+        dl_status = self.background_thread[p].status
+        if dl_status.startswith("done"):
+            self.build()
+            return False  # cancel scheduled check_dl_status()
+        return True
+
+    def on_retry_button(self, btn_name):
+        self.launch_background_tasks(skip_if_tried_already=False)
+        kivy.clock.Clock.schedule_once(self.build)
+
+    def on_city_tap(self):
+        print("city clicked")
+        # FIXME: access hostname for clicked list item 
+        # FIXME: do weighted random choice via random.choices(options, weights)
 
     def is_data_valid(self):
-        toast("FIXME")
+        toast("Please select a city.")
         return False
 
 

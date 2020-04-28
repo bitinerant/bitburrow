@@ -95,6 +95,8 @@ class FloatButton(AnchorLayout):
 
     def plus_button(self):
         app = MDApp.get_running_app()
-        app.manager.current = "guide_intro"
+        next_screen = app.manager.next()
+        app.screen.ids[next_screen].build()
+        app.manager.current = next_screen
         app.manager.transition.direction = "left"
 
