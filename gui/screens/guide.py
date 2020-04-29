@@ -192,13 +192,15 @@ class BackNextBar(FloatLayout):
 
 class GuideScreenBase(Screen):
     form_data = dict()  # user-entered data from all screens
-    background_thread = dict()  # EndpointManager() object for each VPN provider
+    providers = None  # shared list of VPN provider data
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.app = MDApp.get_running_app()
         self.scroll_area = None
         self.content_stack = None
+        if GuideScreenBase.providers is None:
+            GuideScreenBase.providers = providers.endpointmanager.EndpointManagerList(self.app.user_data_dir)
 
     def build(self, *args):
         #print(f"building   {type(self)}")
@@ -228,21 +230,6 @@ class GuideScreenBase(Screen):
     def is_data_valid(self):  # override with method that checks user input
         toast("This method should never be called.")
         return False
-
-    def launch_background_tasks(self, skip_if_tried_already=True):
-        p = self.form_data['vpn_provider']
-        if p is None:
-            return
-        if self.background_thread.get(p, None) is None:  # first attempt
-            # https://kivy.org/doc/stable/api-kivy.clock.html "The callback is weak-referenced"
-            self.background_thread[p] = providers.endpointmanager.EndpointManager(
-                provider_id = self.app.providers[p].id,
-                storage = self.app.user_data_dir,
-            )
-        else:  # we've tried download before
-            if skip_if_tried_already:
-                return
-        self.background_thread[p].prepare_phonebook()
 
 
 class GuideIntro(GuideScreenBase):
@@ -307,6 +294,7 @@ class GuideVpnProvider(GuideScreenBase):
     def __init__(self, **kvargs):
         self.name = 'guide_vpn_provider'
         super().__init__(**kvargs)
+        self.previously_selected = dict()
         self.built = False
 
     def build(self, *args):
@@ -327,24 +315,27 @@ class GuideVpnProvider(GuideScreenBase):
         main_text.bind(on_ref_press=self.open_url)
         self.content_stack.add_widget(main_text)
         provider_list = MDList()
-        for i, p in enumerate(self.app.providers[1:]):
-            if p.bb_status == "supported":
-                widget = SelectOne(
-                    text = "[b]" + p.display_name + "[/b]",
-                    secondary_text = "website: " + self.link_mu(p.website, p.url)
-                )
-                widget.ids._lbl_secondary.bind(on_ref_press=self.open_url)  # tapping link opens browser
-                widget.index = i+1  # +1 because we start at providers[1]
-                widget.callback_select = self.set_selected
-                provider_list.add_widget(widget)
+        for i, p in enumerate(GuideScreenBase.providers):
+            widget = SelectOne(
+                text = "[b]" + p.display_name + "[/b]",
+                secondary_text = "website: " + self.link_mu(p.website, p.url)
+            )
+            widget.ids._lbl_secondary.bind(on_ref_press=self.open_url)  # tapping link opens browser
+            widget.index = i
+            widget.callback_select = self.set_selected
+            provider_list.add_widget(widget)
         self.content_stack.add_widget(provider_list)
     
     def set_selected(self, p):
-        self.form_data['vpn_provider'] = p  # index of VPN provider, 1..n
-        self.launch_background_tasks()  # when selecting, go ahead and pre-fetch endpoint list
+        GuideScreenBase.form_data['vpn_provider'] = p  # index of VPN provider, 0..n-1
+        if p is None:
+            return  # UNchecked
+        if not self.previously_selected.get(p, False):  # trigger pre-fetch on first tap only
+            GuideScreenBase.providers[p].prepare_phonebook()  # pre-fetch endpoint list
+            self.previously_selected[p] = True
 
     def is_data_valid(self):
-        if self.form_data.get('vpn_provider', None) is None:
+        if GuideScreenBase.form_data.get('vpn_provider', None) is None:
             toast("Please select a VPN provider.")
             return False
         return True
@@ -358,12 +349,12 @@ class GuideVpnCredentials(GuideScreenBase):
         self.build_index = None
 
     def build(self, *args):
-        current_index = self.form_data.get('vpn_provider', None)  # user-selected provider
-        if current_index == self.build_index:
+        p = GuideScreenBase.form_data.get('vpn_provider', None)  # user-selected provider
+        if p == self.build_index:
             return  # keep existing layout
-        self.build_index = current_index
+        self.build_index = p
         super().build(*args)
-        provider = self.app.providers[current_index]
+        provider = GuideScreenBase.providers[p]
         heading = GuideTextLabel(
             text = self.app.translation._('[size=30][b]Step 2[/b][/size]'),
         )
@@ -397,7 +388,7 @@ class GuideVpnCredentials(GuideScreenBase):
             if getattr(cred.children[0], 'required', False) and text == "":
                 toast("The {} field cannot be empty.".format(cred.children[0].hint_text.lower()))
                 return False
-            self.form_data[id] = text
+            GuideScreenBase.form_data[id] = text
         return True
 
 
@@ -417,8 +408,8 @@ class GuideVpnLocation(GuideScreenBase):
             text = self.app.translation._('[size=30][b]Step 3[/b][/size]'),
         )
         self.content_stack.add_widget(heading)
-        p = self.form_data['vpn_provider']
-        dl_status = self.background_thread[p].status
+        p = GuideScreenBase.form_data['vpn_provider']
+        dl_status = GuideScreenBase.providers[p].status
         if not dl_status.startswith("done"):  # download in progress
             main_text = GuideTextLabel(
                 text = self.app.translation._(
@@ -452,8 +443,8 @@ class GuideVpnLocation(GuideScreenBase):
             main_text.bind(on_ref_press=self.open_url)
             self.content_stack.add_widget(main_text)
             endpoint_list = MDList()
-            p = self.form_data['vpn_provider']
-            for country in self.background_thread[p].phonebook['providers'][0]['countries']:
+            p = GuideScreenBase.form_data['vpn_provider']
+            for country in GuideScreenBase.providers[p].phonebook['providers'][0]['countries']:
                 for city in country['cities']:
                     widget = TwoLineAvatarListItem()
                     icon = ImageLeftWidget()
@@ -474,15 +465,17 @@ class GuideVpnLocation(GuideScreenBase):
             self.content_stack.add_widget(endpoint_list)
     
     def check_dl_status(self, *args):
-        p = self.form_data['vpn_provider']
-        dl_status = self.background_thread[p].status
+        p = GuideScreenBase.form_data['vpn_provider']
+        dl_status = GuideScreenBase.providers[p].status
         if dl_status.startswith("done"):
             self.build()
             return False  # cancel scheduled check_dl_status()
         return True
 
     def on_retry_button(self, btn_name):
-        self.launch_background_tasks(skip_if_tried_already=False)
+        p = GuideScreenBase.form_data['vpn_provider']  # index of VPN provider, 0..n-1
+        assert p is not None
+        GuideScreenBase.providers[p].prepare_phonebook()
         kivy.clock.Clock.schedule_once(self.build)
 
     def on_city_tap(self):

@@ -517,30 +517,6 @@ class Models:
         return self.models
 
 
-class Providers:
-
-    class ProviderList(yaml.YAMLObject):
-        yaml_loader = yaml.SafeLoader
-        yaml_tag = "!Providers"
-
-    class Provider(yaml.YAMLObject):
-        yaml_loader = yaml.SafeLoader
-        yaml_tag = "!Provider"
-
-    @staticmethod
-    def load():
-        """Load and validate list of providers."""
-        self = Providers()
-        self.providers = list()
-        f_path = os.path.join("providers", "details.yml")
-        with open(f_path, "r") as f:
-            try:
-                self.providers = yaml.safe_load(f)
-            except (yaml.YAMLError, yaml.constructor.ConstructorError) as yaml_err:
-                raise CGError(_("Error parsing {}: {}").format(f, yaml_err))
-        return self.providers
-
-
 class Config(yaml.YAMLObject):
     yaml_loader = yaml.SafeLoader
     yaml_tag = "!Config"
