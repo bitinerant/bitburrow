@@ -31,6 +31,8 @@ except Exception:
 __version__ = '0.3'
 
 def main():
+    if sys.version_info < (3, 6):
+        sys.exit("This app requires Python version 3.6 or higher.\n")
     def create_error_monitor():
         class _App(App):
             theme_cls = ThemeManager()

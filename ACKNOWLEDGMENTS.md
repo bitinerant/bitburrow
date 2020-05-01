@@ -6,4 +6,4 @@ Here, in chronological order, are the people and projects which have made *this*
 * [Kivy](https://kivy.org/) (MIT license)
 * [KivyMD](https://github.com/HeaTTheatR/KivyMD) (MIT license)
 * [CreatorKivyProject](https://github.com/HeaTTheatR/CreatorKivyProject) (MIT license)
-
+* [Public Domain Flags](https://github.com/emcrisostomo/flags)
