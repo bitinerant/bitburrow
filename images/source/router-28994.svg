@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 744.09447 1052.362179" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+ <defs>
+  <linearGradient id="d">
+   <stop stop-color="#4bd104" stop-opacity=".79608" offset="0"/>
+   <stop stop-color="#4dc500" stop-opacity=".49804" offset="1"/>
+  </linearGradient>
+  <linearGradient id="c">
+   <stop stop-color="#7f8c98" offset="0"/>
+   <stop stop-color="#0c2042" offset="1"/>
+  </linearGradient>
+  <linearGradient id="a" x1="50.489" x2="644.71" gradientUnits="userSpaceOnUse">
+   <stop offset="0"/>
+   <stop stop-opacity="0" offset="1"/>
+  </linearGradient>
+  <linearGradient id="b" x1="262.15" x2="576.74" y1="254.89" y2="399.24" gradientUnits="userSpaceOnUse" xlink:href="#c"/>
+  <radialGradient id="i" cx="347.92" cy="386.83" r="298.08" gradientTransform="matrix(-.98728 .15899 -.08469 -.52589 724.18 534.94)" gradientUnits="userSpaceOnUse">
+   <stop stop-color="#26344c" stop-opacity=".89796" offset="0"/>
+   <stop stop-color="#10223f" offset="1"/>
+  </radialGradient>
+  <radialGradient id="f" cx="453.66" cy="484.31" r="238.2" gradientTransform="matrix(1.1522 -.20652 .047464 .2648 -95.166 412.59)" gradientUnits="userSpaceOnUse">
+   <stop stop-color="#aabed0" stop-opacity=".60204" offset="0"/>
+   <stop stop-color="#0c2042" offset="1"/>
+  </radialGradient>
+  <radialGradient id="j" cx="144.84" cy="213.71" r="303.43" gradientTransform="matrix(1.1301 .72531 -.41815 .65154 70.515 12.462)" gradientUnits="userSpaceOnUse" xlink:href="#c"/>
+  <radialGradient id="h" cx="433.85" cy="444.07" r="16.197" gradientTransform="matrix(1 5.9642e-7 -4.534e-7 .76021 .00020134 106.48)" gradientUnits="userSpaceOnUse" xlink:href="#d"/>
+  <radialGradient id="g" cx="374.78" cy="459.28" r="16.035" gradientTransform="matrix(.96892 -.24738 .24221 .94864 -99.59 116.3)" gradientUnits="userSpaceOnUse" xlink:href="#d"/>
+  <radialGradient id="e" cx="144.84" cy="213.71" r="303.43" gradientTransform="matrix(-.92005 -.97815 .40955 -.38523 189.44 480.19)" gradientUnits="userSpaceOnUse" xlink:href="#c"/>
+ </defs>
+ <g transform="matrix(.39857 0 0 .39857 241.76 241.24)">
+  <path d="m451.96 169.93-394.12 78.493s-8.2625 0.82625-8.2625 13.22-2.4787 80.972-1.6525 90.887 114.85 282.58 114.85 282.58 1.6525 4.9575 12.394 3.305 352.81-80.972 470.13-134.68c0 0 9.0887-21.482 8.2625-28.919s-5.7837-82.625-5.7837-82.625-0.82625-5.7837-8.2625-15.699-185.91-204.91-187.56-206.56z" fill="url(#j)" fill-rule="evenodd"/>
+  <path d="m53.726 251.01-1.9419 5.1784 110.04 252.45v95.152s4.5311 1.2946 8.4148-0.64729l0.6473-95.8s317.18-58.904 475.12-121.04c0 0-3.8838-6.473-10.357-15.535s-184.48-201.31-184.48-201.31l0.6473 5.8257 181.89 202.6s7.1203 4.5311-7.1202 9.0622-255.68 79.617-460.87 112.63l-111.98-248.56z" fill="url(#i)" fill-rule="evenodd"/>
+  <path d="m474.79 409.92 14.564-3.5601 15.211 19.095s2.2655 3.2365 2.2655 9.0621 0.32365 13.593 0.32365 13.593l-14.888 3.8838-0.32366-14.241s0-3.8838-3.2365-7.7676l-13.917-20.066z" fill="url(#b)" fill-rule="evenodd" stroke="url(#a)"/>
+  <path d="m445.66 417.69 15.535-3.8838 13.917 18.448s2.2655 3.2365 2.2655 9.0621v14.888l-14.564 3.2365-0.32366-14.888s0-3.8838-3.2365-7.7676l-13.593-19.095z" fill="url(#b)" fill-rule="evenodd" stroke="url(#a)"/>
+  <path d="m418.15 424.49 14.888-3.2365 14.241 17.801s2.2655 3.2365 2.2655 9.0621-0.32365 15.211-0.32365 15.211l-14.24 3.5601-0.32366-15.535s0-3.8838-3.2365-7.7676l-13.27-19.095z" fill="url(#h)" fill-rule="evenodd" stroke="url(#a)"/>
+  <path d="m389.67 432.25 14.888-4.2074 12.299 16.83s2.2655 3.2365 2.2655 9.0621v16.83l-14.241 4.2074-0.6473-17.801s0-3.8838-3.2365-7.7676l-11.328-17.153z" fill="url(#b)" fill-rule="evenodd" stroke="url(#a)"/>
+  <path d="m359.25 440.02 15.211-3.8838 13.593 17.801s2.2655 3.2365 2.2655 9.0621v15.535l-15.211 3.8838 0.32364-16.182s0-3.8838-3.2365-7.7676l-12.946-18.448z" fill="url(#g)" fill-rule="evenodd" stroke="url(#a)"/>
+  <path d="m327.53 448.11 16.506-4.2074 11.328 17.477s2.2655 3.2365 2.2655 9.0621 0.32365 16.182 0.32365 16.182l-15.211 4.2074-1e-5 -17.153s0-3.8838-3.2365-7.7676l-11.975-17.801z" fill="url(#b)" fill-rule="evenodd" stroke="url(#a)"/>
+  <path d="m169.59 505.4s415.56-87.385 475.76-122.34c0 0 0.6473 3.8838 0.6473 8.4148s-252.45 82.207-475.76 119.75l-0.64729-5.8257z" fill="url(#f)" fill-rule="evenodd"/>
+  <path d="m54.859 249.69s-6.4279-1.0083-6.4279 11.385-2.4787 80.972-1.6525 90.887 114.85 282.58 114.85 282.58 1.6525 4.9575 12.394 3.305 16.613-105.76 11.243-116.93l-130.4-271.23z" fill="url(#e)" fill-rule="evenodd" opacity=".98889"/>
+  <path d="m652.8 473.47-1.2926-8.4148s-280.5 102.92-484.74 134.64h-7.1095l-112.46-279.63v29.128l114.4 281.57s2.5853 1.9419 5.1705 1.9419v-25.892s298.6-56.962 486.03-133.34z" fill-rule="evenodd" opacity=".4"/>
+  <text transform="matrix(1.0579 -.21444 .46607 .85077 0 0)" x="75.16755" y="313.11172" fill="#fff" font-family="Bitstream Vera Sans" font-size="28.869" opacity=".91111">
+   <tspan x="75.16755" y="313.11172">netopia</tspan>
+  </text>
+ </g>
+ <text transform="matrix(.09651 -.18631 -.95313 .19402 226.04 239.41)" x="-1494.6473" y="-327.38693" fill="#dfdfdf" fill-opacity=".79781" font-family="Bitstream Vera Sans" font-size="36.145">
+  <tspan x="-1494.6473" y="-327.38693" fill="#dfdfdf" fill-opacity=".79781">..........</tspan>
+ </text>
+ <text transform="matrix(.09167 -.18296 -.9869 .23682 226.04 239.41)" x="-1581.4961" y="-330.06665" fill="#dfdfdf" fill-opacity=".79781" font-family="Bitstream Vera Sans" font-size="34.525">
+  <tspan x="-1581.4961" y="-330.06665" fill="#dfdfdf" fill-opacity=".79781">..........</tspan>
+ </text>
+ <text transform="matrix(.09167 -.18296 -.9869 .23682 226.04 239.41)" x="-1578.5413" y="-340.90546" fill="#dfdfdf" fill-opacity=".79781" font-family="Bitstream Vera Sans" font-size="34.525">
+  <tspan x="-1578.5413" y="-340.90546" fill="#dfdfdf" fill-opacity=".79781">..........</tspan>
+ </text>
+ <text transform="matrix(.09167 -.18296 -.9869 .23682 226.04 239.41)" x="-1580.6282" y="-353.32388" fill="#dfdfdf" fill-opacity=".79781" font-family="Bitstream Vera Sans" font-size="34.525">
+  <tspan x="-1580.6282" y="-353.32388" fill="#dfdfdf" fill-opacity=".79781">..........</tspan>
+ </text>
+ <text transform="matrix(.09651 -.18631 -.95313 .19402 226.04 239.41)" x="-1500.5095" y="-314.17203" fill="#dfdfdf" fill-opacity=".79781" font-family="Bitstream Vera Sans" font-size="36.145">
+  <tspan x="-1500.5095" y="-314.17203" fill="#dfdfdf" fill-opacity=".79781">..........</tspan>
+ </text>
+ <text transform="matrix(.09651 -.18631 -.95313 .19402 226.04 239.41)" x="-1499.7898" y="-300.29059" fill="#dfdfdf" fill-opacity=".79781" font-family="Bitstream Vera Sans" font-size="36.145">
+  <tspan x="-1499.7898" y="-300.29059" fill="#dfdfdf" fill-opacity=".79781">..........</tspan>
+ </text>
+</svg>

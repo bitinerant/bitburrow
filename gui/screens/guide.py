@@ -13,7 +13,7 @@ from kivymd.uix.list import MDList, TwoLineAvatarListItem, ImageLeftWidget
 from kivymd.uix.textfield import MDTextField
 from kivy.uix.stacklayout import StackLayout
 from kivy.uix.anchorlayout import AnchorLayout
-from kivymd.uix.list import TwoLineAvatarListItem, ImageLeftWidget
+from kivymd.uix.list import OneLineAvatarListItem, TwoLineAvatarListItem, ImageLeftWidget
 from kivymd.toast import toast
 from kivy.uix.screenmanager import Screen
 import kivy.clock
@@ -171,7 +171,7 @@ class BackNextBar(FloatLayout):
 
     def build(self, *args):
         self.ids.button_next.text = 'NEXT  [b]>[/b]'
-        if self.parent.name == 'guide_intro':
+        if self.parent.name == 'guide0':
             self.ids.button_back.text = 'CANCEL'
         else:
             self.ids.button_back.text = '[b]<[/b]  BACK'
@@ -195,6 +195,7 @@ class GuideScreenBase(Screen):
     providers = None  # shared list of VPN provider data
 
     def __init__(self, **kwargs):
+        self.name = self.__class__.__name__.lower()
         super().__init__(**kwargs)
         self.app = MDApp.get_running_app()
         self.scroll_area = None
@@ -216,6 +217,12 @@ class GuideScreenBase(Screen):
         )
         self.content_stack.bind(minimum_height = self.content_stack.setter('height'))
         self.scroll_area.add_widget(self.content_stack)
+        step_number = int(self.name.replace("guide", ""))  # allign 'class GuideX' and "Step X"
+        title = f"Step {step_number}" if step_number > 0 else "Introduction"
+        heading = GuideTextLabel(
+            text = self.app.translation._(f'[size=30][b]{title}[/b][/size]'),
+        )
+        self.content_stack.add_widget(heading)
         
     def open_url(self, instance, url):
         try:
@@ -232,10 +239,9 @@ class GuideScreenBase(Screen):
         return False
 
 
-class GuideIntro(GuideScreenBase):
+class Guide0(GuideScreenBase):
 
     def __init__(self, **kvargs):
-        self.name = 'guide_intro'
         super().__init__(**kvargs)
         self.built = False
 
@@ -244,10 +250,6 @@ class GuideIntro(GuideScreenBase):
             return
         self.built = True
         super().build(*args)
-        heading = GuideTextLabel(
-            text = self.app.translation._('[size=30][b]Introduction[/b][/size]'),
-        )
-        self.content_stack.add_widget(heading)
         main_text = GuideTextLabel(
             text = self.app.translation._(
                 'Welcome to the BitBurrow app. If you have not already done so, visit ' + 
@@ -289,10 +291,139 @@ class GuideIntro(GuideScreenBase):
         return True
 
 
-class GuideVpnProvider(GuideScreenBase):
+class Guide1(GuideScreenBase):
+    #ideas: https://cdn.yankodesign.com/images/design_news/2019/06/what-if-you-could-trick-big-corporations-from-stealing-your-data/winston13.jpg
+    #above link from: https://www.yankodesign.com/2019/06/14/this-design-encrypts-your-network-to-prevent-tech-companies-hackers-governments-from-spying-on-you/
 
     def __init__(self, **kvargs):
-        self.name = 'guide_vpn_provider'
+        super().__init__(**kvargs)
+        self.built = False
+
+    def build(self, *args):
+        if self.built:
+            return
+        self.built = True
+        super().build(*args)
+        main_text = GuideTextLabel(
+            text = self.app.translation._(
+                "Plug your router into the internet. The diagram below represents a " +
+                "typical set-up. Tap on an item for an explanation.", normalize_spaces=True),
+        )
+        main_text.bind(on_ref_press=self.open_url)
+        self.content_stack.add_widget(main_text)
+        from collections import namedtuple
+        Element = namedtuple('Element', ['icon', 'text', 'description'])
+        elements = [
+            Element("internet.png", "Cable or wall jack from outside the house",
+                "Internet service can come into the house in a variety of ways, such as " +
+                "your telephone line, cable TV connection, or Ethernet. You shouldn't " +
+                "have to make changes to this part of the set-up."),
+            Element("down-arrow.png", None, ""),
+            Element("modem-device.png", "Modem or all-in-one device",
+                "This device is often owned and installed by your internet service provider. " +
+                "It should have at least one but usually several Ethernet jacks which are " +
+                "often numbered, e.g. 1 through 4, or labeled 'LAN'. Plug one end of the " +
+                "BitBurrow Ethernet cable into one of these that is unused.\n\n" +
+                "An all-in-one device combines the functionality of a modem and a router. " +
+                "It is important to understand that anything connected directly to an " +
+                "all-in-one device like this, either via WiFi or an Ethernet cable, will " +
+                "[b]not[/b] be connected via the VPN. If you want to force all existing WiFi " +
+                "connections to use the VPN, you can change the WiFi password on your " +
+                "all-in-one device.\n\n" +
+                "Note that Ethernet plugs look similar to phone plugs but are wider, and " +
+                "that it does not matter which end of the Ethernet cable you use first."),
+            Element("down-arrow.png", None, ""),
+            Element("ethernet.png", "BitBurrow Ethernet cable",
+                "Almost any Ethernet cable should work for this, but it is labeled 'BitBurrow' " +
+                "here because it connects the " +
+                "BitBurrow router to your existing internet connection."),
+            Element("down-arrow.png", None, ""),
+            Element("generic-router.png", "Your BitBurrow VPN router",
+                "The BitBurrow router is the hardware device which this app will configure. " +
+                "Plug the BitBurrow Ethernet cable into the 'WAN' port on the BitBurrow " +
+                "router. It is important that you [b]don't use the LAN port[/b] for this. " +
+                "(The LAN port(s) [i]can[/i] be used for printers, desktop PCs, etc.)"),
+            Element("wifi.png", None, ""),
+            Element("wifi-devices.png", "Laptops, phones, and other WiFi devices",
+                "Any number of devices will be able to connect to your BitBurrow router " +
+                "at the same time, and all take advantage of the VPN. You can also connect " +
+                "wired devices if your BitBurrow router has a LAN Ethernet port."),
+        ]
+        item_list = MDList()
+        for i, e in enumerate(elements):
+            widget = OneLineAvatarListItem()
+            icon = ImageLeftWidget()
+            icon.source = os.path.join("images", e.icon)
+            widget.add_widget(icon)
+            widget.divider = None
+            if e.text is None:
+                widget.height = 7
+            else:
+                widget.text = e.text
+            if e.description != "":
+                widget.description = e.description
+                widget.bind(on_release=self.item_dialog)
+            item_list.add_widget(widget)
+        self.content_stack.add_widget(item_list)
+
+    def item_dialog(self, widget):
+        # FIXME: scrolling does not work if description is too long; a list scrolls (see
+        # router_dialog()) but long text does not
+        dialog = MDDialog(
+            title = widget.text,
+            text = widget.description,
+            #markup = True,  # causes "TypeError", but on by default
+            buttons = [MDFlatButton(
+                text = "OK",
+                text_color = self.app.theme_cls.primary_color,
+                on_press = lambda button: dialog.dismiss(),
+            ),],
+            size_hint = (0.8, 0.7),
+        )
+        dialog.open()
+
+    def is_data_valid(self):
+        return True
+
+
+class Guide2(GuideScreenBase):
+
+    def __init__(self, **kvargs):
+        super().__init__(**kvargs)
+        self.built = False
+
+    def build(self, *args):
+        if self.built:
+            return
+        self.built = True
+        super().build(*args)
+        main_text = GuideTextLabel(
+            text = self.app.translation._(
+                "Choose the WiFi connection from the list below that represents the " +
+                "router you would like to configure. ", normalize_spaces=True),
+        )
+        main_text.bind(on_ref_press=self.open_url)
+        self.content_stack.add_widget(main_text)
+        #item_list = MDList()
+        #for i, p in enumerate(xxxxxxxxxxxxxxxxxxxxxx):
+        #    widget = SelectOne(
+        #        text = "[b]" + p.display_name + "[/b]",
+        #        secondary_text = "website: " + self.link_mu(p.website, p.url)
+        #    )
+        #    widget.ids._lbl_secondary.bind(on_ref_press=self.open_url)  # tapping link opens browser
+        #    widget.index = i
+        #    widget.callback_select = self.set_selected
+        #    item_list.add_widget(widget)
+        #self.content_stack.add_widget(item_list)
+
+    def is_data_valid(self):
+        toast("FIXME")
+        return False
+
+
+class Guide3(GuideScreenBase):
+
+    def __init__(self, **kvargs):
         super().__init__(**kvargs)
         self.previously_selected = dict()
         self.built = False
@@ -302,10 +433,6 @@ class GuideVpnProvider(GuideScreenBase):
             return
         self.built = True
         super().build(*args)
-        heading = GuideTextLabel(
-            text = self.app.translation._('[size=30][b]Step 1[/b][/size]'),
-        )
-        self.content_stack.add_widget(heading)
         main_text = GuideTextLabel(
             text = self.app.translation._(
                 'Choose a VPN provider from the list below. ' +
@@ -314,7 +441,7 @@ class GuideVpnProvider(GuideScreenBase):
         )
         main_text.bind(on_ref_press=self.open_url)
         self.content_stack.add_widget(main_text)
-        provider_list = MDList()
+        item_list = MDList()
         for i, p in enumerate(GuideScreenBase.providers):
             widget = SelectOne(
                 text = "[b]" + p.display_name + "[/b]",
@@ -323,13 +450,13 @@ class GuideVpnProvider(GuideScreenBase):
             widget.ids._lbl_secondary.bind(on_ref_press=self.open_url)  # tapping link opens browser
             widget.index = i
             widget.callback_select = self.set_selected
-            provider_list.add_widget(widget)
-        self.content_stack.add_widget(provider_list)
+            item_list.add_widget(widget)
+        self.content_stack.add_widget(item_list)
     
     def set_selected(self, p):
         GuideScreenBase.form_data['vpn_provider'] = p  # index of VPN provider, 0..n-1
         if p is None:
-            return  # UNchecked
+            return  # user UNchecked
         if not self.previously_selected.get(p, False):  # trigger pre-fetch on first tap only
             GuideScreenBase.providers[p].prepare_phonebook()  # pre-fetch endpoint list
             self.previously_selected[p] = True
@@ -341,10 +468,9 @@ class GuideVpnProvider(GuideScreenBase):
         return True
 
 
-class GuideVpnCredentials(GuideScreenBase):
+class Guide4(GuideScreenBase):
 
     def __init__(self, **kvargs):
-        self.name = 'guide_vpn_credentials'
         super().__init__(**kvargs)
         self.build_index = None
 
@@ -355,10 +481,6 @@ class GuideVpnCredentials(GuideScreenBase):
         self.build_index = p
         super().build(*args)
         provider = GuideScreenBase.providers[p]
-        heading = GuideTextLabel(
-            text = self.app.translation._('[size=30][b]Step 2[/b][/size]'),
-        )
-        self.content_stack.add_widget(heading)
         main_text = GuideTextLabel(
             text = self.app.translation._(
                 'Enter your credentials for ' +
@@ -392,10 +514,9 @@ class GuideVpnCredentials(GuideScreenBase):
         return True
 
 
-class GuideVpnLocation(GuideScreenBase):
+class Guide5(GuideScreenBase):
 
     def __init__(self, **kvargs):
-        self.name = 'guide_vpn_location'
         super().__init__(**kvargs)
         #self.built = False
 
@@ -404,10 +525,6 @@ class GuideVpnLocation(GuideScreenBase):
         #    return
         #self.built = True
         super().build(*args)
-        heading = GuideTextLabel(
-            text = self.app.translation._('[size=30][b]Step 3[/b][/size]'),
-        )
-        self.content_stack.add_widget(heading)
         p = GuideScreenBase.form_data['vpn_provider']
         dl_status = GuideScreenBase.providers[p].status
         if not dl_status.startswith("done"):  # download in progress
@@ -442,27 +559,29 @@ class GuideVpnLocation(GuideScreenBase):
             )
             main_text.bind(on_ref_press=self.open_url)
             self.content_stack.add_widget(main_text)
-            endpoint_list = MDList()
+            item_list = MDList()
             p = GuideScreenBase.form_data['vpn_provider']
-            for country in GuideScreenBase.providers[p].phonebook['providers'][0]['countries']:
-                for city in country['cities']:
+            countries = GuideScreenBase.providers[p].phonebook['providers'][0]['countries']
+            for country_i, country in enumerate(countries):
+                for city_i, city in enumerate(country['cities']):
                     widget = TwoLineAvatarListItem()
                     icon = ImageLeftWidget()
                     icon.source = f"flags/png/256/{country['code']}.png"
+                    widget.add_widget(icon)
                     widget.divider = None
                     widget.type = "two-line"
                     if city['name'] == "":
                         widget.text = country['name']
                     else:
                         widget.text = f"{city['name']}, {country['name']}"
-                    l = len(city['servers'])
-                    widget.secondary_text = f"{l} server{'' if l == 1 else 's'}"
-                    widget.add_widget(icon)
-                    widget.on_release = self.on_city_tap
-                    endpoint_list.add_widget(widget)
+                    s = len(city['servers'])
+                    widget.secondary_text = f"{s} {'server' if s == 1 else 'servers'}"
+                    widget.city_index = (country_i, city_i)
+                    widget.bind(on_release=self.on_city_tap)
+                    item_list.add_widget(widget)
                     # dig further via: for server in city['servers']:
                     # and: for range in server['port_rages_wg_udp']:
-            self.content_stack.add_widget(endpoint_list)
+            self.content_stack.add_widget(item_list)
     
     def check_dl_status(self, *args):
         p = GuideScreenBase.form_data['vpn_provider']
@@ -478,29 +597,54 @@ class GuideVpnLocation(GuideScreenBase):
         GuideScreenBase.providers[p].prepare_phonebook()
         kivy.clock.Clock.schedule_once(self.build)
 
-    def on_city_tap(self):
-        print("city clicked")
-        # FIXME: access hostname for clicked list item 
+    def on_city_tap(self, widget):
+        print(f"city clicked: {widget.text} {widget.city_index}")
         # FIXME: do weighted random choice via random.choices(options, weights)
+        GuideScreenBase.form_data['city_index'] = widget.city_index
+        next_screen = self.app.manager.next()
+        self.app.screen.ids[next_screen].build()  # build next screen if needed
+        self.app.manager.current = next_screen
+        self.app.manager.transition.direction = "left"
 
     def is_data_valid(self):
         toast("Please select a city.")
+        return False  # user should click on a city, not the NEXT button
+
+
+class Guide6(GuideScreenBase):
+
+    def __init__(self, **kvargs):
+        super().__init__(**kvargs)
+        self.built = False
+
+    def build(self, *args):
+        if self.built:
+            return
+        self.built = True
+        super().build(*args)
+        main_text = GuideTextLabel(
+            text = self.app.translation._(
+                "Choose the WiFi connection from the list below that represents the " +
+                "router you would like to configure. ", normalize_spaces=True),
+        )
+        main_text.bind(on_ref_press=self.open_url)
+        self.content_stack.add_widget(main_text)
+        #item_list = MDList()
+        #for i, p in enumerate(xxxxxxxxxxxxxxxxxxxxxx):
+        #    widget = SelectOne(
+        #        text = "[b]" + p.display_name + "[/b]",
+        #        secondary_text = "website: " + self.link_mu(p.website, p.url)
+        #    )
+        #    widget.ids._lbl_secondary.bind(on_ref_press=self.open_url)  # tapping link opens browser
+        #    widget.index = i
+        #    widget.callback_select = self.set_selected
+        #    item_list.add_widget(widget)
+        #self.content_stack.add_widget(item_list)
+
+    def is_data_valid(self):
+        toast("FIXME")
         return False
 
 
-class GuideRouterName(Screen):
-    pass
-
-
-class GuideConnectWiFi(Screen):
-    #ideas: https://cdn.yankodesign.com/images/design_news/2019/06/what-if-you-could-trick-big-corporations-from-stealing-your-data/winston13.jpg
-    #above link from: https://www.yankodesign.com/2019/06/14/this-design-encrypts-your-network-to-prevent-tech-companies-hackers-governments-from-spying-on-you/
-    pass
-
-
-class GuideLogin(Screen):
-    pass
-
-
-class GuideConfigure(Screen):
+class Guide7(GuideScreenBase):
     pass

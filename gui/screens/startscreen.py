@@ -8,14 +8,14 @@ Builder.load_string('''
 #:import NavDrawer screens.navdrawer.NavDrawer
 #:import License screens.license.License
 #:import BaseScreen screens.basescreen.BaseScreen
-#:import GuideIntro screens.guide.GuideIntro
-#:import GuideVpnProvider screens.guide.GuideVpnProvider
-#:import GuideVpnCredentials screens.guide.GuideVpnCredentials
-#:import GuideVpnLocation screens.guide.GuideVpnLocation
-#:import GuideRouterName screens.guide.GuideRouterName
-#:import GuideConnectWiFi screens.guide.GuideConnectWiFi
-#:import GuideLogin screens.guide.GuideLogin
-#:import GuideConfigure screens.guide.GuideConfigure
+#:import Guide0 screens.guide.Guide0
+#:import Guide1 screens.guide.Guide1
+#:import Guide2 screens.guide.Guide2
+#:import Guide3 screens.guide.Guide3
+#:import Guide4 screens.guide.Guide4
+#:import Guide5 screens.guide.Guide5
+#:import Guide6 screens.guide.Guide6
+#:import Guide7 screens.guide.Guide7
 #:import About screens.about.About
 
 <StartScreen>:
@@ -34,22 +34,22 @@ Builder.load_string('''
         height: root.height - action_bar.height
         BaseScreen:
             id: base_screen
-        GuideIntro:
-            id: guide_intro
-        GuideVpnProvider:
-            id: guide_vpn_provider
-        GuideVpnCredentials:
-            id: guide_vpn_credentials
-        GuideVpnLocation:
-            id: guide_vpn_location
-        GuideRouterName:
-            id: guide_router_name
-        GuideConnectWiFi:
-            id: guide_connect_wifi
-        GuideLogin:
-            id: guide_login
-        GuideConfigure:
-            id: guide_configure
+        Guide0:
+            id: guide0
+        Guide1:
+            id: guide1
+        Guide2:
+            id: guide2
+        Guide3:
+            id: guide3
+        Guide4:
+            id: guide4
+        Guide5:
+            id: guide5
+        Guide6:
+            id: guide6
+        Guide7:
+            id: guide7
         License:
             id: license
         About:
