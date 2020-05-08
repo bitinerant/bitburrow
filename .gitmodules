@@ -4,3 +4,6 @@
 [submodule "ansible_openwrt"]
 	path = ansible_openwrt
 	url = https://github.com/gekmihesg/ansible-openwrt
+[submodule "kivymd-root"]
+	path = kivymd-root
+	url = https://github.com/HeaTTheatR/KivyMD.git
