@@ -250,14 +250,33 @@ class Guide0(GuideScreenBase):
             return
         self.built = True
         super().build(*args)
+        if kivy.utils.platform == 'linux':
+            bullet_font = "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf"
+            if os.path.isfile(bullet_font):
+                bullet = f"[font={bullet_font}][b]● [/b][/font]"
+            else:
+                bullet = "[b]* [/b]"
+        else:
+            bullet = f"[b]● [/b]"
         main_text = GuideTextLabel(
             text = self.app.translation._(
-                'Welcome to the BitBurrow app. If you have not already done so, visit ' + 
-                self.link_mu("bitburrow.com", "https://bitburrow.com") + 
-                ' for information about BitBurrow, requirements, and how this app fits in. ',
-                #'You can also view ' +
-                #self.link_mu("a list of supported routers", "router_dialog") + '.',
-                normalize_spaces=True),
+                "Welcome to the BitBurrow app.\n\n" +
+                "To use this app, you will need:\n" +
+                bullet + "One of the " +
+                self.link_mu("BitBurrow-supported routers", "router_dialog") +
+                ". If you don't know which to choose, the " +
+                "[i]Slate[/i] (GL-iNet AR750S-Ext) is recommended. It is available from " +
+                "a variety of sources, such as " +
+                self.link_mu("amazon.com", "https://www.amazon.com/dp/B07GBXMBQF") +
+                " and " +
+                self.link_mu("amazon.de", "https://www.amazon.de/-/en/dp/B07GBXMBQF") +
+                " and " +
+                self.link_mu("the manufacturer", "https://store.gl-inet.com/products/gl-ar750s-ext-gigabit-travel-router") +
+                ".\n" +
+                bullet + "A payment method for purchasing the VPN service.\n" +
+                bullet + "A wired internet connection (tap [color=555555]NEXT[/color] " +
+                "below for details).\n",
+            ),
         )
         main_text.bind(on_ref_press=self.open_url)
         self.content_stack.add_widget(main_text)
@@ -313,6 +332,9 @@ class Guide1(GuideScreenBase):
         self.content_stack.add_widget(main_text)
         from collections import namedtuple
         Element = namedtuple('Element', ['icon', 'text', 'description'])
+	# FIXME: diversify to apply to more situations (offices, hotels, existing Ethernet
+	# switches, etc.) without making it more complicated for the user; possible ideas from
+	# https://www.geeky-gadgets.com/wp-content/uploads/2020/01/Online-Privacy-2-1.jpg
         elements = [
             Element("internet.png", "Cable or wall jack from outside the house",
                 "Internet service can come into the house in a variety of ways, such as " +
@@ -340,8 +362,10 @@ class Guide1(GuideScreenBase):
             Element("down-arrow.png", None, ""),
             Element("generic-router.png", "Your BitBurrow VPN router",
                 "The BitBurrow router is the hardware device which this app will configure. " +
-                "Plug the BitBurrow Ethernet cable into the 'WAN' port on the BitBurrow " +
-                "router. It is important that you [b]don't use the LAN port[/b] for this. " +
+                "Plug the BitBurrow Ethernet cable into the port on the BitBurrow " +
+                # FIXME: allow Unicode: "router labeled 'WAN' or 'internet' or with a globe icon (🌐). " +
+                "router labeled 'WAN' or 'internet' or with a globe icon. " +
+                "It is important that you [b]don't use the LAN port[/b] for this. " +
                 "(The LAN port(s) [i]can[/i] be used for printers, desktop PCs, etc.)"),
             Element("wifi.png", None, ""),
             Element("wifi-devices.png", "Laptops, phones, and other WiFi devices",
