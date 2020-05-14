@@ -23,6 +23,7 @@ Builder.load_string('''
         id: action_bar
         background_color: app.theme_cls.primary_color
         title: app.title
+        # for full icon list, run: python images/preview_icons.py
         left_action_items: [ ['menu', lambda x: nav_drawer.toggle_nav_drawer()], ]
         right_action_items: [ ['linux', lambda x: print('linux')], ['help', lambda x: print('help')], ]
         elevation: 10
