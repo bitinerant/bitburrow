@@ -6,68 +6,78 @@
 
 import os
 import sys
-import traceback
+import webbrowser  # FIXME: test without
+import kivy.config
+import kivy.utils
+kivy.config.Config.set('kivy', 'keyboard_mode', 'system')
+kivy.config.Config.set('kivy', 'log_enable', 0)
+if kivy.utils.platform != 'android' and kivy.utils.platform != 'ios': # approximate an Android phone
+    kivy.config.Config.set('graphics', 'width', '413')  # from https://stackoverflow.com/a/30332167
+    kivy.config.Config.set('graphics', 'height', '733')  # must happen before: import kivy
+import kivy
+import textwrap
+import logging
 
-directory = os.path.split(os.path.abspath(sys.argv[0]))[0]
-sys.path.insert(0, os.path.join(directory, 'gui'))
-
-try:
-    import webbrowser
-    import kivy
-    kivy.require('1.9.2')
-    from kivy.utils import platform
-    from kivy.config import Config
-    Config.set('kivy', 'keyboard_mode', 'system')
-    Config.set('kivy', 'log_enable', 0)
-    if platform != 'android' and platform != 'ios': # for testing, approximate an Android phone
-        Config.set('graphics', 'width', '413')  # from https://stackoverflow.com/a/30332167
-        Config.set('graphics', 'height', '733')
-    from kivymd.theming import ThemeManager
-except Exception:
-    traceback.print_exc(file=open(os.path.join(directory, 'error.log'), 'w'))
-    print(traceback.print_exc())
-    sys.exit(1)
 
 __version__ = '0.3'
 
+
 def main():
-    if sys.version_info < (3, 6):
-        sys.exit("This app requires Python version 3.6 or higher.\n")
-    def create_error_monitor():
-        class _App(App):
-            theme_cls = ThemeManager()
-            theme_cls.primary_palette = 'BlueGray'
-
-            def build(self):
-                box = BoxLayout()
-                return box
-        app = _App()
-        app.run()
-
     app = None
-
+    global kivy
     try:
+        min_ver = (3, 6)
+        if sys.version_info < min_ver:
+            assert False, f"This app requires Python version {min_ver[0]}.{min_ver[1]} or higher."
+        kivy.require('1.9.2')
+        directory = os.path.split(os.path.abspath(sys.argv[0]))[0]
+        sys.path.insert(0, os.path.join(directory, 'gui'))
         import program
         app = program.Program()
         app.run()
-    except Exception:
-        from kivy.app import App
-        from kivy.uix.boxlayout import BoxLayout
-
-        text_error = traceback.format_exc()
-        traceback.print_exc(file=open(os.path.join(directory, 'error.log'), 'w'))
-        if app:
-            try:
-                app.stop()
-            except AttributeError:
-                app = None
-        if app:
-            try:
-                app.screen.clear_widgets()
-            except AttributeError:
-            	create_error_monitor()
-        else:
-            create_error_monitor()
+    except Exception as e:
+        # Could try combinations of these, but more testing is needed to know if
+        # any would actually help the error to be displayed:
+        #     import kivy.base
+        #     kivy.base.stopTouchApp()
+        #     app.screen.clear_widgets()
+        #     app.close()
+        #     app.root_window.close()
+        import traceback
+        from kivy.lang import Builder
+        trace = traceback.format_exc()
+        print(trace)
+        error_text = f"We have a problem: [b]{str(e)}[/b]\n\n{trace}"
+        layout = Builder.load_string(textwrap.dedent('''
+            <BackgroundColor@Widget>:
+                background_color: 0, 0, 0, 0
+                canvas.before:
+                    Color:
+                        rgba: root.background_color
+                    Rectangle:
+                        size: self.size
+                        pos: self.pos
+            <BackgroundLabel@Label+BackgroundColor>:
+            StackLayout:
+                ScrollView:
+                    do_scroll_x: False
+                    do_scroll_y: True
+                    size_hint: 1, None
+                    width: self.parent.width
+                    height: self.parent.height
+                    StackLayout:
+                        size_hint_y: None
+                        height: root.ids.text_area.height
+                        BackgroundLabel:
+                            id: text_area
+                            text_size: root.width, None
+                            size: self.texture_size
+                            markup: True
+                            color: 1, 1, 1, 1
+                            background_color: 0, 0, 0, 1
+        '''))
+        layout.ids.text_area.text = error_text
+        kivy.base.runTouchApp(layout)
 
 if __name__ in ('__main__', '__android__'):
     main()
