@@ -47,8 +47,8 @@ def main():
     app = None
 
     try:
-        from bitburrow import bitburrow
-        app = bitburrow()
+        import program
+        app = program.Program()
         app.run()
     except Exception:
         from kivy.app import App
