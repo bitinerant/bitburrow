@@ -19,10 +19,34 @@ from kivymd.uix.card import MDCard, MDSeparator
 from kivymd.uix.label import MDLabel
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.modalview import ModalView
-from connect.main import Models
+import yaml
 
 
-class bitburrow(MDApp):
+class Models:
+    
+    class RouterModelList(yaml.YAMLObject):
+        yaml_loader = yaml.SafeLoader
+        yaml_tag = "!RouterModels"
+
+    class Model(yaml.YAMLObject):
+        yaml_loader = yaml.SafeLoader
+        yaml_tag = "!Model"
+
+    @staticmethod
+    def load():
+        """Load and validate list of routers."""
+        self = Models()
+        self.models = list()
+        f_path = os.path.join("models", "details.yml")
+        with open(f_path, "r") as f: 
+            try:
+                self.models = yaml.safe_load(f)
+            except (yaml.YAMLError, yaml.constructor.ConstructorError) as yaml_err:
+                raise CGError(_("Error parsing {}: {}").format(f, yaml_err))
+        return self.models
+
+
+class Program(MDApp):
     title = 'BitBurrow'
     icon = 'icon.png'
     nav_drawer = ObjectProperty()

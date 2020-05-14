@@ -2,7 +2,7 @@
 
 import argparse
 import base64
-import crypt
+#import crypt  # FIXME: Android build says: The required _crypt module was not built as part of CPython
 from hashlib import sha256
 import io
 import ipaddress
@@ -491,30 +491,6 @@ class Router(yaml.YAMLObject):
             print_msg(1, _("Closing client connection"))
             self.client.close()
             self.client = None
-
-
-class Models:
-
-    class RouterModelList(yaml.YAMLObject):
-        yaml_loader = yaml.SafeLoader
-        yaml_tag = "!RouterModels"
-
-    class Model(yaml.YAMLObject):
-        yaml_loader = yaml.SafeLoader
-        yaml_tag = "!Model"
-
-    @staticmethod
-    def load():
-        """Load and validate list of routers."""
-        self = Models()
-        self.models = list()
-        f_path = os.path.join("models", "details.yml")
-        with open(f_path, "r") as f:
-            try:
-                self.models = yaml.safe_load(f)
-            except (yaml.YAMLError, yaml.constructor.ConstructorError) as yaml_err:
-                raise CGError(_("Error parsing {}: {}").format(f, yaml_err))
-        return self.models
 
 
 class Config(yaml.YAMLObject):
