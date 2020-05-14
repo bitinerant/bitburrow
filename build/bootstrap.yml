@@ -1,0 +1,108 @@
+---
+- name: Start build LXC container, ssh access
+  hosts: localhost
+  tasks:
+
+  - name: Create a work directory
+    file:
+      path: "{{ playbook_dir }}/tmp/"
+      state: directory
+      mode: "0770"
+
+  - name: Check for existing LXC container
+    shell:
+      cmd: lxc info kivy-buildozer || true
+    changed_when: False
+    register: container_info
+
+  - name: Generate host_keys.cfg
+    shell:
+      cmd: python3 {{ playbook_dir }}/70_child_host_keys.cfg.py kivy-buildozer "{{ playbook_dir }}/tmp/child_ecdsa_public_key"
+    changed_when: False
+    register: child_host_keys_cfg
+    when: "'Error: not found' in container_info.stderr"
+
+  - name: Generate users.cfg
+    command:
+      cmd: python3 {{ playbook_dir }}/80_child_users.cfg.py
+    changed_when: False
+    register: child_users_cfg
+    when: "'Error: not found' in container_info.stderr"
+
+  - name: Generate sys.cfg
+    command:
+      cmd: python3 {{ playbook_dir }}/81_child_sys.cfg.py
+    changed_when: False
+    register: child_sys_cfg
+    when: "'Error: not found' in container_info.stderr"
+
+  - name: Build user data file
+    copy:
+      content: |
+        {{ child_host_keys_cfg.stdout }}
+        {{ child_users_cfg.stdout }}
+        {{ child_sys_cfg.stdout }}
+      dest: "{{ playbook_dir }}/tmp/child_user_data.yml"
+    when: "'Error: not found' in container_info.stderr"
+
+  - name: Launch container
+    shell:
+      cmd: lxc launch ubuntu:20.04/amd64 kivy-buildozer "--config=user.user-data=$(cat {{ playbook_dir }}/tmp/child_user_data.yml)"
+    when: "'Error: not found' in container_info.stderr"
+
+  - name: Wait for LXC to set up users, keys
+    command:
+      cmd: sleep 10
+    when: "'Error: not found' in container_info.stderr"
+
+  - name: Start container if needed
+    command:
+      cmd: lxc start kivy-buildozer
+    changed_when: False
+    failed_when: False  # ignore: The container is already running
+
+  - name: Get IP
+    shell:
+      cmd: lxc info kivy-buildozer |grep -Po '\seth\d:\sinet\s+\K[0-9\.]+'
+    changed_when: False
+    register: lxc_ip
+
+  - name: Get child pubkey
+    shell:
+      cmd: lxc exec kivy-buildozer -- cat /etc/ssh/ssh_host_ecdsa_key.pub |tr -d '\n'
+    changed_when: False
+    register: lxc_pubkey
+
+  - name: Get date
+    command:
+      cmd: date +%Y-%m-%d
+    changed_when: False
+    register: year_month_day
+
+  - name: Write `instructions` file
+    copy:
+      #  {{ lxc_ip.stdout }} {{ lxc_pubkey.stdout | b64decode }} # kivy-buildozer {{ year_month_day.stdout }}
+      content: |
+        ---
+        Add this line to ~/.ssh/known_hosts:
+        
+        {{ lxc_ip.stdout }} {{ lxc_pubkey.stdout }}  # {{ year_month_day.stdout }}
+        
+        Add these lines to ~/.ssh/config:
+        
+        Host kivy-buildozer
+            Hostname {{ lxc_ip.stdout }}
+            User adminc
+            IdentityFile ~/.ssh/id_rsa_kivy-buildozer
+      dest: "{{ playbook_dir }}/tmp/instructions"
+
+  - name: Write `hosts` file
+    copy:
+      content: |
+        ---
+        all:
+          hosts:
+            kivy-buildozer:
+              ansible_python_interpreter: auto
+      dest: "{{ playbook_dir }}/tmp/hosts"
+

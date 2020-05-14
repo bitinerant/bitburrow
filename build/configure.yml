@@ -1,0 +1,243 @@
+---
+- name: Install software on build container
+  hosts: kivy-buildozer
+  tasks:
+
+  - name: Set facts
+    set_fact:
+      #ndk_version: 19.2.5345600
+      ndk_version: 21.1.6352462
+      ant_version: apache-ant-1.9.4
+
+  - name: Create Ansible tmp directory
+    file:
+      path: .ansible/tmp
+      state: directory
+      recurse: True
+      mode: "0770"
+
+  - name: Run apt upgrade
+    apt:
+      upgrade: "yes"  # quotes avoid https://github.com/ansible/ansible/issues/56788
+      update_cache: yes
+      cache_valid_time: 432000  # ≥5 days
+    become: yes
+
+  # This is based largely on [Building with VM](https://github.com/HeaTTheatR/KivyMD/blob/master/README.md#building-with-vm).
+  # packages: https://raw.githubusercontent.com/HeaTTheatR/KivyMD-data/master/install-kivy-buildozer-dependencies.sh
+
+  - name: Install packages
+    apt:
+      name:
+      - wget
+      - python3-distutils
+      #FAILS ("SyntaxError: leading zeros in decimal integer literals"): wget https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py
+      - python3-pip
+      - python-pip-whl
+      - build-essential
+      - git
+      - python-is-python3
+      - python3-dev
+      - ffmpeg
+      - libsdl2-dev
+      - libsdl2-image-dev
+      - libsdl2-mixer-dev
+      - libsdl2-ttf-dev
+      - libportmidi-dev
+      - libswscale-dev
+      - libavformat-dev
+      - libavcodec-dev
+      - zlib1g-dev
+      # Buildozer dependencies
+      - build-essential
+      - ccache
+      - libltdl-dev
+      - libffi-dev
+      - libssl-dev
+      - autoconf
+      - autotools-dev
+      - cmake
+      - openjdk-8-jdk
+      - unzip
+      - zlib1g-dev
+      #FAILS ("Unable to locate ..."): apt install libncurses5:i386 libstdc++6:i386 libgtk2.0-0:i386 libpangox-1.0-0:i386 libpangoxft-1.0-0:i386 libidn11:i386 zlib1g:i386
+      - zip
+    become: yes
+
+  - name: Remove packages
+    apt:
+      name:
+      - python-is-python2
+      state: absent
+    become: yes
+
+  - name: Install Python build tools
+    pip:
+      name:
+      - cython
+      - pep517
+      - pytoml
+
+  - name: Install Kivy
+    pip:
+      name:
+      #FAILS ("not a git repository"; Python 3.8 too new): pip3 install kivy
+      - kivy[base]
+      - kivy_examples
+      extra_args: --pre --extra-index-url https://kivy.org/downloads/simple/
+
+  - name: Create Android tools directory
+    file:
+      path: toolbox
+      state: directory
+      mode: "0775"
+
+  - name: Check for Android CLI tools
+    stat:
+      path: toolbox/tools/bin/sdkmanager
+    register: act_installed
+
+  - name: Download Android CLI tools
+    get_url:
+      # from: https://developer.android.com/studio#command-tools
+      url: "https://dl.google.com/android/repository/commandlinetools-linux-6200805_latest.zip"
+      dest: ./android-tools.zip
+    when: not act_installed.stat.exists
+
+  - name: Unzip CLI tools
+    unarchive:
+      src: android-tools.zip
+      dest: toolbox
+      remote_src: yes
+    when: not act_installed.stat.exists
+
+  - name: Clean up CLI tools
+    file:
+      path: android-tools.zip
+      state: absent
+
+  - name: Agree to Android SDK licenses
+    shell:
+      cmd: "yes |toolbox/tools/bin/sdkmanager --sdk_root=toolbox --licenses"
+    when: not act_installed.stat.exists
+
+  - name: Update Android development tools
+    command:
+      # full list via: toolbox/tools/bin/sdkmanager --sdk_root=toolbox --list
+      cmd: "toolbox/tools/bin/sdkmanager --sdk_root=toolbox 'platform-tools' 'platforms;android-28' 'ndk;{{ ndk_version }}' 'build-tools;28.0.3'"
+
+  - name: Update Sdkmanager
+    command:
+      # https://stackoverflow.com/a/60454207
+      cmd: "toolbox/tools/bin/sdkmanager --sdk_root=toolbox 'tools'"
+
+  - name: Check for Ant
+    stat:
+      path: toolbox/ant/{{ ant_version }}
+    register: ant_installed
+
+  - name: Download Ant
+    get_url:
+      url: "https://archive.apache.org/dist/ant/binaries/{{ ant_version }}-bin.tar.gz"
+      dest: ./apache-ant.tar.gz
+    when: not ant_installed.stat.exists
+
+  - name: Create Ant directory
+    file:
+      path: toolbox/ant
+      state: directory
+      recurse: True
+      mode: "0770"
+    when: not ant_installed.stat.exists
+
+  - name: Unzip Ant
+    #unarchive:  # seems broken for .tar.gz files
+    #  src: apache-ant.tar.gz
+    #  dest: toolbox/ant
+    #  remote_src: yes
+    command:
+      cmd: tar -zxf apache-ant.tar.gz --directory=toolbox/ant
+      warn: False
+    when: not ant_installed.stat.exists
+
+  - name: Clean up Ant
+    file:
+      path: apache-ant.tar.gz
+      state: absent
+
+  - name: Create list of files to exclude
+    shell:
+      cmd: git -C .. ls-files --exclude-standard -oi --directory >../.git/ignores.tmp
+    changed_when: False
+    delegate_to: localhost
+
+  - name: Copy BitBurrow source code to container
+    synchronize:
+      src: "{{ playbook_dir }}/../"
+      dest: ./bitburrow
+      copy_links: True  # symlinks don't work in the .apk
+      rsync_opts:
+      - "--delete"
+      - "--exclude-from={{ playbook_dir }}/../.git/ignores.tmp"
+      - "--exclude=.git"
+      - "--exclude=.gitattributes"
+      - "--exclude=.gitmodules"
+      - "--exclude=ansible_openwrt"  # target of symlink
+      - "--exclude=kivymd-root"  # target of symlink
+      - "--exclude=ansible"  # see `grep ^requirements buildozer.spec`
+      - "--exclude=jinja2"  # see `grep ^requirements buildozer.spec`
+      - "--exclude=kivy"  # see `grep ^requirements buildozer.spec`
+      - "--exclude=pyproject.toml"  # copy submodules; avoid: Copying main.py's ONLY, since other app data is expected in site-packages.
+      # Regarding pyproject.toml, see: https://github.com/kivy/python-for-android/issues/2197
+
+  - name: Download Buildozer
+    git:
+      # 2020-05-07 tried installing via Pip but had issues with downloading p4a
+      repo: "https://github.com/kivy/buildozer.git"
+      dest: toolbox/buildozer
+      #version: b6981f8c57e5e423fd97a9b7fca8213eb5adfe00  # 2019-08-29 used by Etheroll and in BitBurrow builds through 2020-05-12
+      version: 446492f4404ebd1ffd62fd5aac613e402196b8a3  # 2020-05-11
+
+  - name: Install Buildozer as root
+    shell:
+      cmd: cd toolbox/buildozer && python3 setup.py install
+    become: yes
+
+  - name: Download Python-for-Android
+    git:
+      repo: "https://github.com/kivy/python-for-android.git"
+      dest: bitburrow/build/.buildozer/android/platform/python-for-android
+      force: yes  # fix error "Local modifications exist in repository", even when repo unchanged
+  #    version: 8cf66cc12dca1a0b5210356be39ca9b6ee0a5630  # 2020-03-30 master - error "env must be a dict"; https://askubuntu.com/a/1233673
+      version: 47c9c33f522d0ec6fa4a654ac661bdbce7bc79b5  # 2020-04-08 develop
+
+  - name: Create keystore directory
+    file:
+      path: .keystores
+      state: directory
+      mode: "0700"
+
+  - name: Check app signing key
+    stat:
+      path: .keystores/bitburrow.keystore
+    register: keystore_file
+
+  - name: Create app signing key if needed
+    shell:
+      cmd: printf "testpassword\ntestpassword\n\n\n\n\n\n\nyes\n" |keytool -genkey -v -keystore .keystores/bitburrow.keystore -alias alias_name -keyalg RSA -keysize 2048 -validity 10000
+    when: not keystore_file.stat.exists
+
+  - name: Convert app signing key format
+    shell:
+      cmd: printf "testpassword\n" |keytool -importkeystore -srckeystore .keystores/bitburrow.keystore -destkeystore .keystores/bitburrow.keystore -deststoretype pkcs12
+    when: not keystore_file.stat.exists
+
+  - name: Add app signing vars to .bashrc so Buildozer will use them
+    blockinfile:
+      path: .bashrc
+      insertbefore: "# If not running interactively"
+      block: |
+        P4A_RELEASE_KEYSTORE=~/.keystores/bitburrow.keystore
+        P4A_RELEASE_KEYSTORE_PASSWD=testpassword
+        P4A_RELEASE_KEYALIAS_PASSWD=testpassword
+        P4A_RELEASE_KEYALIAS=alias_name
