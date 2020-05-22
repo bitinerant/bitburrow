@@ -81,7 +81,8 @@
   - name: Install Kivy
     pip:
       name:
-      #FAILS ("not a git repository"; Python 3.8 too new): pip3 install kivy
+      # this fails ("not a git repository"; Python 3.8 too new): pip3 install kivy
+      # https://stackoverflow.com/a/60556921
       - kivy[base]
       - kivy_examples
       extra_args: --pre --extra-index-url https://kivy.org/downloads/simple/

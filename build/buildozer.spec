@@ -53,7 +53,7 @@ requirements = python3==3.7.5, hostpython3==3.7.5, kivy, ansible, jinja2, PyYAML
 #     * ✔https://stackoverflow.com/questions/39924598
 #     * ✔https://stackoverflow.com/questions/61658224
 #     * ✔https://stackoverflow.com/questions/46060693
-#     * ✔https://github.com/kivy/buildozer/issues/1089
+#     * ✔https://github.com/kivy/buildozer/issues/1089 (w/ comment that this will be fixed in Kivy 2.0)
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
