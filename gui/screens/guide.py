@@ -211,10 +211,9 @@ class GuideScreenBase(Screen):
         if self.content_stack is not None:
             print(f"rebuilding {type(self)} content_stack")
             self.scroll_area.remove_widget(self.content_stack)
-        self.content_stack = StackLayout(  # create or recreate content_stack
-            id = "content_stack",
-            size_hint_y = None,
-        )
+        self.content_stack = StackLayout()  # create or recreate content_stack
+        self.content_stack.id = "content_stack"
+        self.content_stack.size_hint_y = None
         self.content_stack.bind(minimum_height = self.content_stack.setter('height'))
         self.scroll_area.add_widget(self.content_stack)
         step_number = int(self.name.replace("guide", ""))  # allign 'class GuideX' and "Step X"
@@ -251,7 +250,7 @@ class Guide0(GuideScreenBase):
         self.built = True
         super().build(*args)
         if kivy.utils.platform == 'linux':
-            bullet_font = "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf"
+            bullet_font = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
             if os.path.isfile(bullet_font):
                 bullet = f"[font={bullet_font}][b]● [/b][/font]"
             else:
