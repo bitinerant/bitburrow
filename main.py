@@ -29,7 +29,7 @@ def main():
         min_ver = (3, 6)
         if sys.version_info < min_ver:
             assert False, f"This app requires Python version {min_ver[0]}.{min_ver[1]} or higher."
-        kivy.require('1.9.2')
+        kivy.require('1.11.1')
         directory = os.path.split(os.path.abspath(sys.argv[0]))[0]
         sys.path.insert(0, os.path.join(directory, 'gui'))
         import program
