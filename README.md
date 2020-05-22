@@ -14,6 +14,39 @@ This software is not yet ready for general use.
 
 ## Developer Guide
 
+To run on Linux:
+
+* make sure you have Python 3.6 or newer
+* install Python package dependencies:
+
+    ```bash
+    python -m pip install --upgrade --user pip setuptools virtualenv
+    mkdir -p <your_python_virtual_env_directory> && cd $_
+    python -m virtualenv bitburrow
+    source bitburrow/bin/activate
+    cd <your_code_dir>/bitburrow
+    export TO_PIP_INSTALL=$(grep -Po '^requirements *= *\K.*' build/buildozer.spec |grep -Po '((, *)|(^))\K[^, ]*' |grep -v -e '^python3\b' -e 'hostpython3\b' -e '^kivy\b' |tr '\n' ' ')
+    python -m pip install $TO_PIP_INSTALL
+    ```
+
+* install Kivy for Python 3.6-3.7:
+
+    ```bash
+    python -m pip install kivy
+    ```
+
+* install Kivy for Python 3.8 (until Kivy 2.0 is out):
+
+    ```bash
+    python -m pip install kivy[base] kivy_examples --pre --extra-index-url https://kivy.org/downloads/simple/
+    ```
+
+* run:
+
+    ```bash
+    python main.py
+    ```
+
 To run unit tests and style checks on the project, install `tox` into your virtual
 environment and run it.
 
@@ -71,7 +104,7 @@ See also [Create a package for Android](https://kivy.org/doc/stable/guide/packag
 * Buildozer should automatically sign the .apk, but you can manually sign via:
 
     ```bash
-    jarsigner -verbose -keystore $P4A_RELEASE_KEYSTORE -storepass $P4A_RELEASE_KEYSTORE_PASSWD bin/bitburrow*.apk $P4A_RELEASE_KEYALIAS
+    ssh kivy-buildozer 'source .profile && cd bitburrow/build/ && jarsigner -verbose -keystore $P4A_RELEASE_KEYSTORE -storepass $P4A_RELEASE_KEYSTORE_PASSWD bin/bitburrow*.apk $P4A_RELEASE_KEYALIAS'
     #verify: jarsigner -verify -keystore $P4A_RELEASE_KEYSTORE bin/bitburrow*.apk
     ```
 
