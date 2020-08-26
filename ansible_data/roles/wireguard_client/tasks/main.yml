@@ -1,10 +1,5 @@
 ---
 # WireGuard for OpenWrt; based initially on https://openwrt.org/docs/guide-user/services/vpn/wireguard/client
-- name: Set facts
-  set_fact:
-    relays_path: "{{ role_path }}/files/relays.json"
-    relays_update_days: 2
-
 - name: Install Wireguard
   opkg:
     name: wireguard
@@ -13,36 +8,14 @@
   - restart network
   - restart firewall
 
-- name: Check relays.json (Mullvad endpoint list)
-  stat:
-    path: "{{ relays_path }}"
-    get_checksum: no
-    get_mime: no
-  delegate_to: localhost
-  register: relays_file
-
-- name: Compute file age of relays.json
-  set_fact:
-    # age is since 1970 if file is missing
-    relays_age: "{{ (lookup('pipe','date +%s') | int - relays_file.stat.mtime | default(0)) | int }}"
-  delegate_to: localhost
-
-- name: Download relays.json
-  uri:
-    # API from https://github.com/mullvad/mullvadvpn-app/blob/master/update-relays.sh
-    url: https://api.mullvad.net/rpc/
-    method: POST
-    body_format: json
-    body: '{"jsonrpc": "2.0", "id": "0", "method": "relay_list_v3"}'
-    dest: "{{ relays_path }}"
-  #when: (relays_age > (relays_update_days * 24 * 60 * 60))  # broken; no idea why
-  when: ((relays_age | int) > (relays_update_days * 24 * 60 * 60))
-  delegate_to: localhost
-
 # uci documentation:
 # - https://github.com/gekmihesg/ansible-openwrt/blob/master/library/uci.py
 # - https://wiki.teltonika-networks.com/view/UCI_command_usage
 # - https://github.com/gekmihesg/ansible-openwrt/issues/6
+
+#FIXME: copy firewall rules from gl-inet-ovpn.coterie and test before and after, i.e. with an invalid
+#FIXME: WireGuard hostname, to make sure rules block traffic and DNS except through wg0 interface
+#FIXME: See also: "How do I enable a kill switch?" on https://mullvad.net/en/help/wireguard-and-mullvad-vpn/
 
 - name: Configure firewall
   # consider VPN network as public and assign VPN interface to WAN zone to minimize firewall setup
