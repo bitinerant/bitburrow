@@ -107,26 +107,6 @@ Builder.load_string('''
                     height: 22
     BackNextBar:
         id: back_next_bar
-
-<GuideRouterName>:
-    name: 'guide_router_name'
-    BoxLayout:
-        orientation: 'vertical'
-
-<GuideConnectWiFi>:
-    name: 'guide_connect_wifi'
-    BoxLayout:
-        orientation: 'vertical'
-
-<GuideLogin>:
-    name: 'guide_login'
-    BoxLayout:
-        orientation: 'vertical'
-
-<GuideConfigure>:
-    name: 'guide_configure'
-    BoxLayout:
-        orientation: 'vertical'
 ''')
 
 
