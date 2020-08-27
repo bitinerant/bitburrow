@@ -22,12 +22,12 @@ import uuid
 from cryptography.hazmat.backends import default_backend as crypto_default_backend
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from dbus import exceptions
+#from dbus import exceptions  # FIXME: no dbus on PyPI
 import getmac
 import netifaces  # needs sudo apt install python3-netifaces but default on Ubuntu 18.04 Desktop
-import NetworkManager  # needs sudo apt install python3-networkmanager
+#import NetworkManager  # both of these are broken: "pip install python-networkmanager" and "sudo apt install python3-networkmanager"
 import paramiko
-from scp import SCPClient
+#from scp import SCPClient
 import yaml
 
 
@@ -91,7 +91,7 @@ def wifi_available_ssids():
                 #   /NetworkManager/stable/gdbus-org.freedesktop.NetworkManager.AccessPoint.html
                 aps = dev.GetAccessPoints()
                 new_sig_levels = [a.Strength for a in aps]  # list of WiFi signal levels for APs
-            except (exceptions.DBusException, NetworkManager.ObjectVanished):
+            except:  # FIXME - should be as follows but no dbus on PyPI: (exceptions.DBusException, NetworkManager.ObjectVanished)
                 # ~5% of the scans, we get: No such interface 'org.freedesktop.DBus.Properties'
                 time.sleep(0.1)
                 continue
