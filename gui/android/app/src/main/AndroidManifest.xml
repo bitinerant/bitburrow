@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.gui">
+    package="com.bitburrow.app">
    <application
-        android:label="gui"
+        android:label="BitBurrow"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

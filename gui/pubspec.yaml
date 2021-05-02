@@ -1,5 +1,5 @@
-name: gui
-description: A new Flutter project.
+name: BitBurrow
+description: A safe internet tunnel for the whole home that anyone can set up.
 
 # The following line prevents the package from being accidentally published to
 # pub.dev using `pub publish`. This is preferred for private packages.
