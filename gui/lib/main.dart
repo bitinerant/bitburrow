@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'starflut.dart';
 
 void main() {
   runApp(MyApp());
@@ -7,8 +8,10 @@ void main() {
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    var p = new Python();
+    p.Run();
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'BitBurrow',
       theme: ThemeData(
         primarySwatch: Colors.brown,
         accentColor: Colors.amber,
