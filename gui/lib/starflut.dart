@@ -3,25 +3,27 @@ import 'package:starflut/starflut.dart';
 
 class Python {
   static final Python _instance = Python.init(); // singleton
-  StarServiceClass service = null;
+  StarCoreFactory starcore = null;
+  StarServiceClass Service = null;
+  StarSrvGroupClass SrvGroup = null;
   Python.init();
 
   static Future<Python> create() async {
-    _instance.service = await _instance._init();
+    await _instance._init();
     return _instance;
   }
 
-  Future<StarServiceClass> _init() async {
+  Future _init() async {
     String Path1 = await Starflut.getResourcePath();
     // String Path2 = await Starflut.getAssetsPath();
-    StarCoreFactory starcore = await Starflut.getFactory();
-    StarServiceClass Service = await starcore.initSimple("test", "123", 0, 0, []);
+    starcore = await Starflut.getFactory();
+    Service = await starcore.initSimple("test", "123", 0, 0, []);
     // await starcore.regMsgCallBackP(
     //         (int serviceGroupID, int uMsg, Object wParam, Object lParam) async{
     //       print("$serviceGroupID  $uMsg   $wParam   $lParam");
     //       return null;
     //     });
-    StarSrvGroupClass SrvGroup = await Service["_ServiceGroup"];
+    SrvGroup = await Service["_ServiceGroup"];
     int Platform = await Starflut.getPlatform();
     if( Platform == Starflut.MACOS ) {
       await starcore.setShareLibraryPath(
@@ -76,14 +78,16 @@ class Python {
     // StarObjectClass multiply_inst = await multiply.newObject(["", "", 33, 44]);
     // print(await multiply_inst.getString());
     // print(await multiply_inst.call("multiply", [11, 22]));
-    return Service;
-    // await SrvGroup.clearService();
-    // await starcore.moduleExit();
-    // print("finish");
+  }
+
+  @override
+  void dispose() async {
+    await SrvGroup.clearService();
+    await starcore.moduleExit();
   }
 
   Future<String> multiply(int a, int b) async {
-    StarObjectClass multiply = await service.importRawContext(null,"python", "Multiply", true, "");
+    StarObjectClass multiply = await Service.importRawContext(null,"python", "Multiply", true, "");
     StarObjectClass multiply_inst = await multiply.newObject(["", "", 33, 44]);
     return await multiply_inst.call("multiply", [a, b]);
   }
