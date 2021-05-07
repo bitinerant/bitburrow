@@ -8,8 +8,6 @@ void main() {
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    var p = new Python();
-    p.Run();
     return MaterialApp(
       title: 'BitBurrow',
       theme: ThemeData(
@@ -31,7 +29,12 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  Future<Python> p = initPython();
   int _counter = 0;
+
+  static Future<Python> initPython() async {
+    return await Python.create();
+  }
 
   void _incrementCounter() {
     setState(() {
@@ -77,22 +80,48 @@ class _MyHomePageState extends State<MyHomePage> {
       );
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          brightness: Brightness.dark,
-          // white notification icons, clock; see https://stackoverflow.com/questions/52489458
-          backgroundColor: Colors.brown[600],
-          // defaults to primarySwatch
-          title: Text(widget.title),
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        brightness: Brightness.dark,  // white notification icons; see https://stackoverflow.com/questions/52489458
+        backgroundColor: Colors.brown[600],  // defaults to primarySwatch
+        title: FutureBuilder<Python>(
+          future: p,
+          builder: (context, snapshot) {
+            if (snapshot.hasData) {
+              return FutureBuilder<String>(
+                future: snapshot.data/*!*/.multiply(37, 8),
+                builder: (context, snapshot) {
+                    if (snapshot.hasData) {
+                    return Text("${widget.title}: ${snapshot.data}");
+                    } else if (snapshot.hasError) {
+                    final error = snapshot.error.toString();
+                    print("Error FSAN: $error");
+                    return Text("$error");
+                    } else {
+                    return Text("${widget.title}: loading ...");
+                    }
+                }
+              );
+            } else if (snapshot.hasError) {
+              final error = snapshot.error.toString();
+              print("Error RANW: $error");
+              return Text("$error");
+            } else {
+              return Text("${widget.title}: loading ..");
+            }
+          }
         ),
-        body: Container(
-          child: _buildHomeList(),
-          color: Colors.brown[200],
-        ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: _incrementCounter,
-          tooltip: 'Increment',
-          child: Icon(Icons.add),
-        ),
-      );
+      ),
+      body: Container(
+        child: _buildHomeList(),
+        color: Colors.brown[200],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _incrementCounter,
+        tooltip: 'Increment',
+        child: Icon(Icons.add),
+      ),
+    );
+  }
 }

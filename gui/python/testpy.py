@@ -12,5 +12,4 @@ class Multiply :
         self.b = y
     
     def multiply(self,a,b):
-        print("multiply....",self,a,b)
-        return a * b
+        return f"9×{a}×{b}={9*a*b}"
