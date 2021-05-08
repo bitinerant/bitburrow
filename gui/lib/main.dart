@@ -28,20 +28,30 @@ class MyHomePage extends StatefulWidget {
   _MyHomePageState createState() => _MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _MyHomePageState extends State<MyHomePage> with SingleTickerProviderStateMixin {
   Future<Python> p = initPython();
-  int _counter = 0;
+  final List<Tab> myTabs = <Tab>[
+    Tab(text: 'ROUTERS'),
+    Tab(text: 'SERVICES'),
+    Tab(text: 'SETTINGS'),
+  ];
+  /*late*/ TabController _tabController;
 
   static Future<Python> initPython() async {
     return await Python.create();
   }
 
-  void _incrementCounter() {
-    setState(() {
-      _counter++;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(vsync: this, length: myTabs.length);
   }
 
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
   Widget _buildHomeList() => ListView.builder(
         // TODO: allow user to change order, maybe via https://pub.dev/packages/drag_and_drop_lists
         itemBuilder: (context, index) {
@@ -112,13 +122,31 @@ class _MyHomePageState extends State<MyHomePage> {
             }
           }
         ),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: myTabs,
+        ),
       ),
-      body: Container(
-        child: _buildHomeList(),
-        color: Colors.brown[200],
+      body: TabBarView(
+        controller: _tabController,
+        children: myTabs.map((Tab tab) {
+          if (tab.text == 'ROUTERS') {
+            return Container(
+              child: _buildHomeList(),
+              color: Colors.brown[200],
+            );
+          } else {
+            return Center(
+              child: Text(
+                'This is the ${tab.text} tab',
+                style: const TextStyle(fontSize: 18),
+              ),
+            );
+          }
+        }).toList(),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
+        // onPressed: _incrementCounter,
         tooltip: 'Increment',
         child: Icon(Icons.add),
       ),
