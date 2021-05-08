@@ -28,30 +28,19 @@ class MyHomePage extends StatefulWidget {
   _MyHomePageState createState() => _MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> with SingleTickerProviderStateMixin {
+class _MyHomePageState extends State<MyHomePage> {
   Future<Python> p = initPython();
-  final List<Tab> myTabs = <Tab>[
+  static const List<Tab> tabs = <Tab>[
     Tab(text: 'ROUTERS'),
     Tab(text: 'SERVICES'),
     Tab(text: 'SETTINGS'),
   ];
-  /*late*/ TabController _tabController;
 
   static Future<Python> initPython() async {
     return await Python.create();
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(vsync: this, length: myTabs.length);
-  }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
   Widget _buildHomeList() => ListView.builder(
         // TODO: allow user to change order, maybe via https://pub.dev/packages/drag_and_drop_lists
         itemBuilder: (context, index) {
@@ -91,65 +80,69 @@ class _MyHomePageState extends State<MyHomePage> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        brightness: Brightness.dark,  // white notification icons; see https://stackoverflow.com/questions/52489458
-        backgroundColor: Colors.brown[600],  // defaults to primarySwatch
-        title: FutureBuilder<Python>(
-          future: p,
-          builder: (context, snapshot) {
-            if (snapshot.hasData) {
-              return FutureBuilder<String>(
-                future: snapshot.data/*!*/.multiply(37, 8),
-                builder: (context, snapshot) {
-                    if (snapshot.hasData) {
-                    return Text("${widget.title}: ${snapshot.data}");
-                    } else if (snapshot.hasError) {
-                    final error = snapshot.error.toString();
-                    print("Error FSAN: $error");
-                    return Text("$error");
-                    } else {
-                    return Text("${widget.title}: loading ...");
+    return DefaultTabController(
+      length: tabs.length,
+      child: Builder(builder: (BuildContext context) {
+        final TabController tabController = DefaultTabController.of(context)/*!*/;
+        return Scaffold(
+          appBar: AppBar(
+            brightness: Brightness.dark,  // white notification icons; see https://stackoverflow.com/questions/52489458
+            backgroundColor: Colors.brown[600],  // defaults to primarySwatch
+            title: FutureBuilder<Python>(
+              future: p,
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  return FutureBuilder<String>(
+                    future: snapshot.data/*!*/.multiply(37, 8),
+                    builder: (context, snapshot) {
+                        if (snapshot.hasData) {
+                        return Text("${widget.title}: ${snapshot.data}");
+                        } else if (snapshot.hasError) {
+                        final error = snapshot.error.toString();
+                        print("Error FSAN: $error");
+                        return Text("$error");
+                        } else {
+                        return Text("${widget.title}: loading ...");
+                        }
                     }
+                  );
+                } else if (snapshot.hasError) {
+                  final error = snapshot.error.toString();
+                  print("Error RANW: $error");
+                  return Text("$error");
+                } else {
+                  return Text("${widget.title}: loading ..");
                 }
-              );
-            } else if (snapshot.hasError) {
-              final error = snapshot.error.toString();
-              print("Error RANW: $error");
-              return Text("$error");
-            } else {
-              return Text("${widget.title}: loading ..");
-            }
-          }
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: myTabs,
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: myTabs.map((Tab tab) {
-          if (tab.text == 'ROUTERS') {
-            return Container(
-              child: _buildHomeList(),
-              color: Colors.brown[200],
-            );
-          } else {
-            return Center(
-              child: Text(
-                'This is the ${tab.text} tab',
-                style: const TextStyle(fontSize: 18),
-              ),
-            );
-          }
-        }).toList(),
-      ),
-      floatingActionButton: FloatingActionButton(
-        // onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: Icon(Icons.add),
-      ),
+              }
+            ),
+            bottom: const TabBar(
+              tabs: tabs,
+            ),
+          ),
+          body: TabBarView(
+            children: tabs.map((Tab tab) {
+              if (tab.text == 'ROUTERS') {
+                return Container(
+                  child: _buildHomeList(),
+                  color: Colors.brown[200],
+                );
+              } else {
+                return Center(
+                  child: Text(
+                    tab.text/*!*/ + ' Tab',
+                    style: Theme.of(context).textTheme.headline5,
+                  ),
+                );
+              }
+            }).toList(),
+          ),
+          floatingActionButton: FloatingActionButton(
+           // onPressed: _incrementCounter,
+            tooltip: 'Increment',
+            child: Icon(Icons.add),
+          ),
+        );
+      }),
     );
   }
 }
