@@ -40,8 +40,8 @@ class Python {
     bool isAndroid = await Starflut.isAndroid();
     if( isAndroid == true ){
       // await Starflut.copyFileFromAssets("testcallback.py", "flutter_assets/python","flutter_assets/python");
-      // await Starflut.copyFileFromAssets("testpy.py", "flutter_assets/python","flutter_assets/python");
-      // await Starflut.copyFileFromAssets("python3.9.zip", null, null);  //desRelatePath must be null
+      await Starflut.copyFileFromAssets("testpy.py", "flutter_assets/python","flutter_assets/python");  // FIXME: copyFileFromAssets() only needed at install time
+      await Starflut.copyFileFromAssets("python3.9.zip", null, null);  // desRelatePath must be null
       var nativepath = await Starflut.getNativeLibraryDir();
       var LibraryPath = "";
       if( nativepath.contains("x86_64"))
