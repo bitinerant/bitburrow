@@ -12,4 +12,11 @@ class Multiply :
         self.b = y
     
     def multiply(self,a,b):
+        print("import coloredlogs ...")
+        import logging
+        import coloredlogs
+        logger = logging.getLogger(__name__)
+        coloredlogs.install(level='DEBUG')
+        logger.info('Test phase 1')
+        # import paramiko  # ImportError("cannot import name '_bcrypt' from 'bcrypt'
         return f"9×{a}×{b}={9*a*b}"

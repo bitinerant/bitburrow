@@ -52,8 +52,22 @@ class Python {
         LibraryPath = "armeabi";
       else if( nativepath.contains("x86"))
         LibraryPath = "x86";
+      // copy Python C modules; see also ../android/app/src/main/build.sh
+      // ... and https://uonfu.com/q/srplab/starcore_for_flutter/5/776902757
       await Starflut.copyFileFromAssets("zlib.cpython-39.so", LibraryPath,null);
       await Starflut.copyFileFromAssets("unicodedata.cpython-39.so", LibraryPath,null);
+      await Starflut.copyFileFromAssetsEx("_socket.cpython-39.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("math.cpython-39.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("select.cpython-39.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("array.cpython-39.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_hashlib.cpython-39.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_struct.cpython-39.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("binascii.cpython-39.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_blake2.cpython-39.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_contextvars.cpython-39.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_random.cpython-39.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_posixsubprocess.cpython-39.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_csv.cpython-39.so", LibraryPath, null, false);
       await Starflut.loadLibrary("libpython3.9.so");
     }
     // String docPath = await Starflut.getDocumentPath();
