@@ -30,7 +30,7 @@ class Python {
           Path1); //set path for interface library
       bool LoadResult = await Starflut.loadLibrary(Path1+"/libpython3.9.dylib");
       print("$LoadResult");  //--load
-      await Starflut.setEnv("PYTHONPATH","/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9");
+      await Starflut.setEnv("PYTHONPATH","/Library/Frameworks/Python.framework/Versions/3.8/lib/python3.8");
       String pypath = await Starflut.getEnv("PYTHONPATH");
       print("$pypath");
     } else if( Platform == Starflut.WINDOWS ) {
@@ -41,7 +41,8 @@ class Python {
     if( isAndroid == true ){
       // await Starflut.copyFileFromAssets("testcallback.py", "flutter_assets/python","flutter_assets/python");
       await Starflut.copyFileFromAssets("testpy.py", "flutter_assets/python","flutter_assets/python");  // FIXME: copyFileFromAssets() only needed at install time
-      await Starflut.copyFileFromAssets("python3.9.zip", null, null);  // desRelatePath must be null
+      await Starflut.copyFileFromAssets("python3.8.zip", null, null);  // desRelatePath must be null
+      await Starflut.copyFileFromAssets("nonstdlib.zip", null, null);  // desRelatePath must be null
       var nativepath = await Starflut.getNativeLibraryDir();
       var LibraryPath = "";
       if( nativepath.contains("x86_64"))
@@ -54,21 +55,23 @@ class Python {
         LibraryPath = "x86";
       // copy Python C modules; see also ../android/app/src/main/build.sh
       // ... and https://uonfu.com/q/srplab/starcore_for_flutter/5/776902757
-      await Starflut.copyFileFromAssets("zlib.cpython-39.so", LibraryPath,null);
-      await Starflut.copyFileFromAssets("unicodedata.cpython-39.so", LibraryPath,null);
-      await Starflut.copyFileFromAssetsEx("_socket.cpython-39.so", LibraryPath, null, false);
-      await Starflut.copyFileFromAssetsEx("math.cpython-39.so", LibraryPath, null, false);
-      await Starflut.copyFileFromAssetsEx("select.cpython-39.so", LibraryPath, null, false);
-      await Starflut.copyFileFromAssetsEx("array.cpython-39.so", LibraryPath, null, false);
-      await Starflut.copyFileFromAssetsEx("_hashlib.cpython-39.so", LibraryPath, null, false);
-      await Starflut.copyFileFromAssetsEx("_struct.cpython-39.so", LibraryPath, null, false);
-      await Starflut.copyFileFromAssetsEx("binascii.cpython-39.so", LibraryPath, null, false);
-      await Starflut.copyFileFromAssetsEx("_blake2.cpython-39.so", LibraryPath, null, false);
-      await Starflut.copyFileFromAssetsEx("_contextvars.cpython-39.so", LibraryPath, null, false);
-      await Starflut.copyFileFromAssetsEx("_random.cpython-39.so", LibraryPath, null, false);
-      await Starflut.copyFileFromAssetsEx("_posixsubprocess.cpython-39.so", LibraryPath, null, false);
-      await Starflut.copyFileFromAssetsEx("_csv.cpython-39.so", LibraryPath, null, false);
-      await Starflut.loadLibrary("libpython3.9.so");
+      await Starflut.copyFileFromAssets("zlib.cpython-38.so", LibraryPath,null);
+      await Starflut.copyFileFromAssets("unicodedata.cpython-38.so", LibraryPath,null);
+      await Starflut.copyFileFromAssetsEx("_socket.cpython-38.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("math.cpython-38.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("select.cpython-38.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("array.cpython-38.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_hashlib.cpython-38.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_struct.cpython-38.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("binascii.cpython-38.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_blake2.cpython-38.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_contextvars.cpython-38.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_random.cpython-38.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_posixsubprocess.cpython-38.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_csv.cpython-38.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_sha3.cpython-38.so", LibraryPath, null, false);
+      await Starflut.copyFileFromAssetsEx("_ssl.cpython-38.so", LibraryPath, null, false);
+      await Starflut.loadLibrary("libpython3.8.so");  // renamed from p4a libpython3.8m.so
     }
     // String docPath = await Starflut.getDocumentPath();
     // print("docPath = $docPath");
@@ -76,7 +79,7 @@ class Python {
     // print("resPath = $resPath");
     String assetsPath = await Starflut.getAssetsPath();
     // print("assetsPath = $assetsPath");
-    dynamic rr1 = await SrvGroup.initRaw("python39", Service);
+    dynamic rr1 = await SrvGroup.initRaw("python38", Service);
     // print("initRaw = $rr1");
     var Result = await SrvGroup.loadRawModule("python", "", assetsPath + "/flutter_assets/python/" + "testpy.py", false);
     // print("loadRawModule = $Result");
@@ -104,5 +107,11 @@ class Python {
     StarObjectClass multiply = await Service.importRawContext(null,"python", "Multiply", true, "");
     StarObjectClass multiply_inst = await multiply.newObject(["", "", 33, 44]);
     return await multiply_inst.call("multiply", [a, b]);
+  }
+
+  Future<String> getTestfContents() async {
+    StarObjectClass test = await Service.importRawContext(null, 'python', 'TestSsh', true, '');
+    StarObjectClass test_inst = await test.newObject(['', '']);
+    return await test_inst.call('get_testf_contents', ['/root/testf']);
   }
 }

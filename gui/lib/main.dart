@@ -93,7 +93,7 @@ class _MyHomePageState extends State<MyHomePage> {
               builder: (context, snapshot) {
                 if (snapshot.hasData) {
                   return FutureBuilder<String>(
-                    future: snapshot.data/*!*/.multiply(37, 8),
+                    future: snapshot.data/*!*/.getTestfContents(),
                     builder: (context, snapshot) {
                         if (snapshot.hasData) {
                         return Text("${widget.title}: ${snapshot.data}");
