@@ -22,6 +22,8 @@ wg_dev_map = list()  # map Dev.id to wgX WireGuard device
 ipv4_map = list()  # map Dev.id to ipv4_base
 ipv6_map = list()  # map Dev.id to ipv6_base
 reserved_ips = 38
+
+
 class Dev(SQLModel, table=True):
     id: Optional[int] = Field(primary_key=True, default=None)
     comment: str
@@ -34,16 +36,16 @@ class Dev(SQLModel, table=True):
     def __init__(self):
         self.comment = ""
         # IPv4 base is 10. + random xx.xx. + 0
-        self.ipv4_base = str(ipaddress.ip_address('10.0.0.0') + secrets.randbelow(2**16)*2**8)
+        self.ipv4_base = str(ipaddress.ip_address('10.0.0.0') + secrets.randbelow(2**16) * 2**8)
         # IPv6 base is fdf9 (fauxpoint) + 2 random groups + 5 0000 groups
-        self.ipv6_base = str(ipaddress.ip_address('fdf9::') + secrets.randbelow(2**32)*(2**80))
+        self.ipv6_base = str(ipaddress.ip_address('fdf9::') + secrets.randbelow(2**32) * 2**80)
         self.privkey = sudo_wg(['genkey'])
         self.pubkey = sudo_wg(['pubkey'], input=self.privkey)
         self.listening_port = 123
 
     def iface(self):
         return f'wg{wg_dev_map[self.id]}'
-    
+
     def ipv4(self):
         # ending in '/32' feels cleaner but client can't ping, even if client uses
         # `ip address add dev wg0 10.110.169.40 peer 10.110.169.1`
@@ -88,17 +90,17 @@ class Dev(SQLModel, table=True):
                 sudo_ip(['-6', 'address', 'add', 'dev', wg_dev, i.ipv6()])
                 sudo_wg(['set', wg_dev, 'private-key', f'!FILE!{i.privkey}'])
                 sudo_wg(['set', wg_dev, 'listen-port', str(i.listening_port)])
-                sudo_iptables([
-                    '--append', 'FORWARD',
-                    '--in-interface', wg_dev,
-                    '--jump', 'ACCEPT',
-                ])
-                sudo_iptables([
-                    '--table', 'nat',
-                    '--append', 'POSTROUTING',
-                    '--out-interface', 'eth0',  # FIXME: not necessarily eth0
-                    '--jump', 'MASQUERADE',
-                ])
+                sudo_iptables(
+                    '--append FORWARD'.split(' ')
+                    + f'--in-interface {wg_dev}'.split(' ')
+                    + '--jump ACCEPT'.split(' ')
+                )
+                sudo_iptables(
+                    '--table nat'.split(' ')
+                    + '--append POSTROUTING'.split(' ')
+                    + '--out-interface eth0'.split(' ')  # FIXME: not necessarily eth0
+                    + '--jump MASQUERADE'.split(' ')
+                )
 
     @staticmethod
     def shutdown():
@@ -108,9 +110,12 @@ class Dev(SQLModel, table=True):
             sudo_ip(['link', 'del', 'dev', f'wg{i}'])
         wg_dev_map = list()
 
+
 ### DB table 'user' - person managing VPN clients
 
 base28_digits: Final[str] = '23456789BCDFGHJKLMNPQRSTVWXZ'  # avoid bad words, 1/i, 0/O
+
+
 class User(SQLModel, table=True):
     __table_args__ = (sqlalchemy.UniqueConstraint('account'),)  # must have a unique account code
     id: Optional[int] = Field(primary_key=True, default=None)
@@ -118,19 +123,23 @@ class User(SQLModel, table=True):
         index=True,
         default_factory=lambda: ''.join(secrets.choice(base28_digits) for i in range(15)),
     )
-    clients_max : int = 7
-    created_at: DateTime = Field(sa_column=sqlalchemy.Column(
-        sqlalchemy.DateTime(timezone=True),
-        default=DateTime.utcnow,
-    ))
-    valid_until: DateTime = Field(sa_column=sqlalchemy.Column(
-        sqlalchemy.DateTime(timezone=True),
-        default=lambda: DateTime.utcnow() + TimeDelta(days=3650),
-    ))
+    clients_max: int = 7
+    created_at: DateTime = Field(
+        sa_column=sqlalchemy.Column(
+            sqlalchemy.DateTime(timezone=True),
+            default=DateTime.utcnow,
+        )
+    )
+    valid_until: DateTime = Field(
+        sa_column=sqlalchemy.Column(
+            sqlalchemy.DateTime(timezone=True),
+            default=lambda: DateTime.utcnow() + TimeDelta(days=3650),
+        )
+    )
     comment: str
 
     def formatted_account(self):  # display version, e.g. 'L7V.2BC.MM3.PRK.VF2'
-        return '.'.join(self[i:i+3] for i in range(0, 15, 3))
+        return '.'.join(self[i : i + 3] for i in range(0, 15, 3))
 
     @staticmethod
     def validate_account(a):
@@ -145,7 +154,7 @@ class User(SQLModel, table=True):
             raise HTTPException(status_code=422, detail="Account not found")
         if result.valid_until.replace(tzinfo=TimeZone.utc) < DateTime.now(TimeZone.utc):
             raise HTTPException(status_code=422, detail="Account expired")
-        #FIXME: verify pubkey limit
+        # FIXME: verify pubkey limit
         return result
 
     @staticmethod
@@ -160,7 +169,9 @@ class User(SQLModel, table=True):
                 session.add(user)
                 session.commit()
 
+
 ### DB table 'client' - VPN client device
+
 
 class Client(SQLModel, table=True):
     __table_args__ = (sqlalchemy.UniqueConstraint('pubkey'),)  # no 2 clients may share a key
@@ -168,8 +179,8 @@ class Client(SQLModel, table=True):
     user_id: int = Field(index=True, foreign_key='user.id')
     pubkey: str
     dev_id: int = Field(foreign_key='dev.id')
-    #preshared_key: str
-    #keepalive: int
+    # preshared_key: str
+    # keepalive: int
 
     def ip_list(self):  # calculate client's 2 IP addresses for allowed-ips
         ipv4 = ipaddress.ip_address(ipv4_map[self.dev_id]) + (reserved_ips + self.id)
@@ -177,13 +188,13 @@ class Client(SQLModel, table=True):
         return f'{ipv4}/32,{ipv6}/128'
 
     def set_peer(self):
-        sudo_wg([  # see https://www.man7.org/linux/man-pages/man8/wg.8.html
-            'set', self.iface(),
-            'peer', self.pubkey,
-            # ¿ 'preshared-key', f'!FILE!(self.preshared_key)',  # see man page
-            # ¿ 'persistent-keepalive', str(self.keepalive),  # see man page
-            'allowed-ips', self.ip_list(),
-        ])
+        sudo_wg(  # see https://www.man7.org/linux/man-pages/man8/wg.8.html
+            f'set {self.iface()}'.split(' ')
+            + f'peer {self.pubkey}'.split(' ')
+            # consider: + f'preshared-key !FILE!(self.preshared_key)}'  # see man page
+            # consider: + f'persistent-keepalive {self.keepalive}'  # see man page
+            + f'allowed-ips {self.ip_list()}'.split(' ')
+        )
 
     def iface(self):
         return f'wg{wg_dev_map[self.dev_id]}'  # e.g.: 'wg0'
@@ -203,16 +214,22 @@ class Client(SQLModel, table=True):
             for c in results:
                 c.set_peer()
 
+
 ### helper methods
+
 
 def sudo_sysctl(args):
     arg_list = args if type(args) is list else [args]
     return run_external(['/usr/bin/sudo', '/usr/sbin/sysctl'] + arg_list)
 
+
 sudo_iptables_log = list()
+
+
 def sudo_iptables(args):
     sudo_iptables_log.append(args)
     return run_external(['/usr/bin/sudo', '/usr/sbin/iptables'] + args)
+
 
 def sudo_undo_iptables():
     global sudo_iptables_log
@@ -224,8 +241,10 @@ def sudo_undo_iptables():
         run_external(exec)
     sudo_iptables_log = list()
 
+
 def sudo_ip(args):
     return run_external(['/usr/bin/sudo', '/bin/ip'] + args)
+
 
 def sudo_wg(args, input=None):
     exec = ['/usr/bin/sudo', '/usr/bin/wg'] + args
@@ -246,24 +265,19 @@ def sudo_wg(args, input=None):
             os.unlink(f)
     return r
 
+
 def run_external(args, input=None):
     print(f"|  running: `{' '.join(args)}`")
-    if input is None:
-        proc = subprocess.run(
-            args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-    else:
-        proc = subprocess.run(
-            args,
-            input=input.encode(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
+    proc = subprocess.run(
+        args,
+        input=None if input is None else input.encode(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     if proc.returncode != 0:
         raise RuntimeError(f"`{' '.join(args)}` returned error: {proc.stderr.decode().rstrip()}")
     return proc.stdout.decode().rstrip()
+
 
 ### startup and shutdown
 
@@ -272,6 +286,7 @@ app = FastAPI()
 limiter = slowapi.Limiter(key_func=slowapi.util.get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(slowapi.errors.RateLimitExceeded, slowapi._rate_limit_exceeded_handler)
+
 
 @app.on_event('startup')
 def on_startup():
@@ -284,20 +299,24 @@ def on_startup():
         on_shutdown()
         raise
 
+
 @app.on_event('shutdown')
 def on_shutdown():
     Dev.shutdown()
 
+
 ### API
 
+
 @app.get('/pubkeys/{account}')
-#@limiter.limit('10/minute')  # FIXME: uncomment this to make brute-forcing account harder
+# @limiter.limit('10/minute')  # FIXME: uncomment this to make brute-forcing account harder
 def get_pubkeys(account: str):
     user = User.validate_account(account)
     with Session(engine) as session:
         statement = select(Client).where(Client.user_id == user.id)
         results = session.exec(statement)
         return [c.pubkey for c in results]
+
 
 @app.post('/wg/', response_class=responses.PlainTextResponse)
 @limiter.limit('100/minute')  # FIXME: reduce to 10
@@ -317,14 +336,15 @@ def new_client(request: Request, account: str = Form(...), pubkey: str = Form(..
         return first.ip_list()  # return existing IPs for this pubkey
     with Session(engine) as session:
         client = Client(
-            user_id = user.id,
-            pubkey = pubkey,
-            dev_id = 0,  # FIXME: figure out how to do multiple devs
+            user_id=user.id,
+            pubkey=pubkey,
+            dev_id=0,  # FIXME: figure out how to do multiple devs
         )
         session.add(client)
         session.commit()  # FIXME: possible race condition where user could exceed clients_max
         client.set_peer()  # configure WireGuard for this peer
         return client.ip_list()
+
 
 @app.post('/new_account/', response_class=responses.PlainTextResponse)
 @limiter.limit('100/minute')  # FIXME: reduce to 10
@@ -335,10 +355,11 @@ def new_account(request: Request, master_account: str = Form(...), comment: str 
     if len(comment) > 99:
         raise HTTPException(status_code=422, detail="Comment too long")
     with Session(engine) as session:
-        account = User(comment = comment)
+        account = User(comment=comment)
         session.add(account)
         session.commit()
         return account.account
+
 
 @app.get('/raise_error')
 def get_pubkeys():
