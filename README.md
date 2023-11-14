@@ -1,4 +1,4 @@
-# BitBurrow
+# This repo is abandoned. See the current version at [bitburrow.com](https://bitburrow.com).
 
 [![Travis Build Status][travis-build-status-svg]][travis-build-status] 
 [![Code Style][black-code-style-svg]][black-code-style]
